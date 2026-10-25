@@ -11,7 +11,7 @@ screen (captured by the stream).
 |---|---|---|
 | Paper | 5M – 500M | Owe player 2x bet (money) |
 | Blackjack | 101M – 701M | Owe player 2x bet (money) |
-| Ely Arrows | any | Owe player 1 Elytra (bought and placed in their `/order`); cost = current elytra price |
+| Ely Arrows (arrow must land on the target item frame) | any | Owe player 1 Elytra (bought and placed in their `/order`); cost = current elytra price |
 
 All ranges, multipliers and the elytra price are editable in config / the GUI.
 
@@ -27,7 +27,9 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
    - Tie (`5 – 5`, `18 – 18`) or house higher → **LOSE** for player (house wins ties).
    - Blackjack only: a score over 21 is a bust (player bust = LOSE; house bust and
      player ≤ 21 = WIN).
-   Pressing **Enter**/**Confirm** locks it in. Score is optional: the WIN / LOSE
+   Pressing **Enter**/**Confirm** locks it in.
+   Ely Arrows cards have no score boxes — instead **HIT** (arrow landed on the
+   target item frame → player WIN) and **MISS** (→ LOSE). Score is optional: the WIN / LOSE
    buttons (or hotkeys on the newest pending bet) still work without one, and
    either button overrides the score-based result.
    - **LOSE** → house keeps the bet. Profit += bet.
@@ -45,7 +47,7 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
   codes/formatting stripped). Pure, unit tested. Hooked via Fabric
   `ClientReceiveMessageEvents` (GAME + CHAT).
 - **GameClassifier** — range-based guess. Pure, unit tested.
-- **ScoreJudge** — score (them, me, game) → WIN/LOSE; ties go to the house;
+- **ScoreJudge** — score (them, me, game) → WIN/LOSE for Paper/Blackjack; ties go to the house;
   blackjack bust rules. Pure, unit tested.
 - **Ledger** — bets (with optional score), outcomes, owed list, session + lifetime stats (net profit,
   wagered, wins, losses, biggest win/loss). Pure, unit tested.
