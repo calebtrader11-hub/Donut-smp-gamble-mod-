@@ -6,6 +6,28 @@ import java.util.List;
 /** User-editable settings, saved as config/donutgamble/config.json. */
 public class GambleConfig {
 	private static final long M = 1_000_000L;
+	private static final int MAX_RECENT = 16;
+
+	/** Moves an item to the front of the recent list. */
+	public void rememberItem(String itemId) {
+		if (itemId == null || itemId.isBlank()) {
+			return;
+		}
+		recentItems.remove(itemId);
+		recentItems.add(0, itemId);
+		while (recentItems.size() > MAX_RECENT) {
+			recentItems.remove(recentItems.size() - 1);
+		}
+	}
+
+	/** Stars or un-stars an item; returns whether it's now a favorite. */
+	public boolean toggleFavorite(String itemId) {
+		if (favoriteItems.remove(itemId)) {
+			return false;
+		}
+		favoriteItems.add(itemId);
+		return true;
+	}
 
 	/**
 	 * Extra regexes for incoming payments, tried after the built-in Donut SMP ones (see
@@ -48,6 +70,13 @@ public class GambleConfig {
 	public long dedupeWindowMs = 1500;
 	/** Small pop-up for each payment and auction event. */
 	public boolean notifications = true;
+
+	/** Streamer Mode and what it hides. */
+	public PrivacySettings privacy = new PrivacySettings();
+	/** Item ids picked for recent auctions, newest first (max 16). */
+	public List<String> recentItems = new ArrayList<>();
+	/** Item ids starred in the item picker. */
+	public List<String> favoriteItems = new ArrayList<>();
 
 	public Game lastGame = Game.PAPER;
 	/** Which tab the queue shows: PAPER, BLACKJACK, ELY, AUCTION, OWE or STATS. */

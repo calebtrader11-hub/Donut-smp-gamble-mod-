@@ -14,7 +14,18 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.text.Text;
 
+import com.donutgamble.client.ui.Paint;
+import net.minecraft.client.input.KeyInput;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.enchantment.Enchantments;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.registry.RegistryKeys;
+import org.lwjgl.glfw.GLFW;
+
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /** Drives a real client: fake /pay messages, calls bets and runs an auction, checking results and screenshotting every screen. */
@@ -144,6 +155,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.setScreen(() -> null);
 
 		runAuction(context);
+		runItemsAndStreamerMode(context);
 		context.setScreen(() -> null);
 	}
 
@@ -245,6 +257,142 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			context.takeScreenshot("donutgamble-manager-" + section.name().toLowerCase(Locale.ROOT));
 		}
+	}
+
+	/** Item picker, auction setup with a real item, and Streamer Mode (render audit + screenshots). */
+	private void runItemsAndStreamerMode(ClientGameTestContext context) {
+		// Item picker: search for spawner.
+		context.runOnClient(client -> {
+			client.setScreen(new ItemPickerScreen(DonutGambleClient.state, null, picked -> { }));
+			client.currentScreen.children().stream().filter(c -> c instanceof com.donutgamble.client.ui.TextBox)
+				.map(c -> (com.donutgamble.client.ui.TextBox) c).findFirst().orElseThrow().setText("spawner");
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-item-picker-search");
+		context.runOnClient(client -> {
+			client.currentScreen.children().stream().filter(c -> c instanceof com.donutgamble.client.ui.TextBox)
+				.map(c -> (com.donutgamble.client.ui.TextBox) c).findFirst().orElseThrow().setText("");
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-item-picker");
+
+		// An exact item (custom name + enchantment) survives save/load.
+		context.runOnClient(client -> {
+			ItemStack sword = new ItemStack(Items.NETHERITE_SWORD);
+			sword.set(DataComponentTypes.CUSTOM_NAME, Text.literal("Donut Slayer"));
+			var sharpness = ItemIcons.lookup().getOrThrow(RegistryKeys.ENCHANTMENT).getOrThrow(Enchantments.SHARPNESS);
+			sword.addEnchantment(sharpness, 5);
+			ItemStack back = ItemIcons.decode(ItemIcons.encode(sword));
+			check(ItemStack.areItemsAndComponentsEqual(sword, back), "item components survive saving");
+			check(ItemIcons.name(back).equals("Donut Slayer"), "custom name kept");
+		});
+
+		// Set up an auction for 2 spawners with a description, then start it with Enter.
+		context.runOnClient(client -> {
+			AuctionSetupScreen.Draft d = AuctionSetupScreen.DRAFT;
+			d.prize = new ItemStack(Items.SPAWNER);
+			d.exact = false;
+			d.quantity = "2";
+			d.title = "";
+			d.description = "Fresh from the End";
+			d.duration = "3m";
+			d.cost = "300m";
+			d.showTop = 5;
+			client.setScreen(new AuctionSetupScreen(DonutGambleClient.state, null));
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-auction-setup");
+		context.runOnClient(client -> {
+			client.currentScreen.keyPressed(new KeyInput(GLFW.GLFW_KEY_ENTER, 0, 0));
+			GambleState state = DonutGambleClient.state;
+			Auction a = state.auctions.current;
+			check(a != null, "setup starts the auction");
+			check("minecraft:spawner".equals(a.itemId) && a.quantity == 2, "prize item and quantity saved");
+			check(a.item.equals("2× Monster Spawner"), "title falls back to the item: " + a.item);
+			check(a.description.equals("Fresh from the End"), "description saved");
+			check(a.durationMs == 180_000, "length saved");
+			check(state.config.recentItems.get(0).equals("minecraft:spawner"), "item remembered as recent");
+			pay(client, "jimbo01 paid you $ 400M");
+			pay(client, "BeanznBread paid you $ 250M");
+			pay(client, "Tobias paid you $ 125M");
+			state.config.activeTab = QueueHud.Tab.AUCTION.name();
+			state.config.hud.slot("profit", 0, 0, false).visible = true;
+		});
+		context.setScreen(() -> new OverlayPreviewScreen());
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-hud-auction-item");
+
+		// Streamer Mode: record every string drawn on every surface and check nothing private is among them.
+		String[] secrets = new String[4];
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			var session = state.finance.report(state.ledger.sessionStart);
+			var life = state.finance.report(0);
+			secrets[0] = Fmt.signed(session.net());
+			secrets[1] = Fmt.money(session.received());
+			secrets[2] = Fmt.signed(life.net());
+			secrets[3] = Fmt.signed(state.ledger.sessionStats().net());
+			state.notify("Exported test.csv", Colors.text());
+			Bet b = state.ledger.pending(Game.PAPER).get(0);
+			state.callTie(b);
+			Paint.audit = new ArrayList<>();
+		});
+		// Control: with Streamer Mode off the dashboard does draw the session net, so the audit sees it.
+		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.DASHBOARD));
+		context.waitTicks(3);
+		context.runOnClient(client -> {
+			check(Paint.audit.stream().anyMatch(t -> t.contains(secrets[0])), "audit sees the session net when Streamer Mode is off");
+			Paint.audit.clear();
+			DonutGambleClient.state.config.privacy.streamerMode = true;
+		});
+		context.setScreen(() -> new OverlayPreviewScreen());
+		for (QueueHud.Tab tab : QueueHud.Tab.values()) {
+			context.runOnClient(client -> DonutGambleClient.state.config.activeTab = tab.name());
+			context.waitTicks(2);
+		}
+		context.runOnClient(client -> DonutGambleClient.state.config.activeTab = QueueHud.Tab.PAPER.name());
+		context.waitTicks(2);
+		context.takeScreenshot("donutgamble-streamer-hud");
+		for (ManagerScreen.Section section : ManagerScreen.Section.values()) {
+			context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, section));
+			context.waitTicks(2);
+			if (section == ManagerScreen.Section.DASHBOARD || section == ManagerScreen.Section.FINANCE
+				|| section == ManagerScreen.Section.PLAYERS || section == ManagerScreen.Section.STREAMER) {
+				context.takeScreenshot("donutgamble-streamer-" + section.name().toLowerCase(Locale.ROOT));
+			}
+		}
+		context.runOnClient(client -> {
+			List<String> drawn = Paint.audit;
+			Paint.audit = null;
+			check(drawn.size() > 200, "audit recorded the frames (" + drawn.size() + " strings)");
+			for (String t : drawn) {
+				for (String secret : secrets) {
+					check(!t.contains(secret), "Streamer Mode drew a private figure: \"" + t + "\" contains " + secret);
+				}
+				check(!t.contains("you keep"), "private toast text drawn: " + t);
+				check(!t.contains("Exported"), "private toast drawn: " + t);
+				check(!t.matches(".*profit [+-]?\\$.*"), "profit figure drawn: " + t);
+			}
+			check(drawn.stream().anyMatch(t -> t.contains("Leader jimbo01")), "auction leader still public");
+			check(drawn.stream().anyMatch(t -> t.contains("2× Monster Spawner")), "auction item still public");
+			check(drawn.stream().anyMatch(t -> t.contains("$400m")), "public bid amounts still shown");
+		});
+
+		// Preview applies the rules without turning Streamer Mode on.
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			state.config.privacy.streamerMode = false;
+			state.preview = true;
+			check(state.hides(com.donutgamble.core.PrivacySettings.Surface.FINANCE), "preview hides finance");
+		});
+		context.setScreen(() -> new OverlayPreviewScreen());
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-stream-preview");
+		context.runOnClient(client -> {
+			DonutGambleClient.state.preview = false;
+			DonutGambleClient.state.endAuction();
+		});
+		context.setScreen(() -> null);
 	}
 
 	/** Draws the in-game queue over the title screen panorama. */

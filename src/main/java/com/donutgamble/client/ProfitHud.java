@@ -2,11 +2,15 @@ package com.donutgamble.client;
 
 import com.donutgamble.client.ui.Paint;
 import com.donutgamble.client.ui.Regions;
+import com.donutgamble.core.PrivacySettings;
 import com.donutgamble.core.Stats;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 
-/** Session profit at a glance (off by default; turn it on in the HUD editor). */
+/**
+ * Session profit at a glance (off by default; turn it on in the HUD editor). Private: while
+ * Streamer Mode hides finance it isn't drawn at all; the editor shows an empty placeholder.
+ */
 final class ProfitHud extends HudElement {
 	private final GambleState state;
 
@@ -20,8 +24,20 @@ final class ProfitHud extends HudElement {
 		return false;
 	}
 
+	private boolean hidden() {
+		return state.hides(PrivacySettings.Surface.FINANCE);
+	}
+
+	@Override
+	boolean hasContent() {
+		return !hidden();
+	}
+
 	@Override
 	int[] size(TextRenderer tr, boolean editing) {
+		if (hidden()) {
+			return new int[]{120, 40};
+		}
 		Stats s = state.ledger.sessionStats();
 		int w = Math.max(tr.getWidth(Fmt.signed(s.net())) * 2, tr.getWidth(detail(s))) + 12;
 		return new int[]{Math.max(w, 90), 40};
@@ -33,12 +49,19 @@ final class ProfitHud extends HudElement {
 
 	@Override
 	int[] defaultPosition(int screenW, int screenH, int w, int h) {
-		return new int[]{screenW - w - 6, 100};
+		return new int[]{(screenW - w) / 2, 6};
 	}
 
 	@Override
 	void draw(DrawContext ctx, TextRenderer tr, Regions regions, double mouseX, double mouseY, boolean editing) {
 		int[] size = size(tr, editing);
+		if (hidden()) {
+			// Only reachable in the editor; no figures are drawn.
+			Paint.hud(ctx, 0, 0, size[0], size[1]);
+			Paint.hudText(ctx, tr, "SESSION", 6, 5, Colors.muted());
+			Paint.hudText(ctx, tr, "Hidden in Streamer Mode", 6, 20, Colors.muted());
+			return;
+		}
 		Stats s = state.ledger.sessionStats();
 		Paint.hud(ctx, 0, 0, size[0], size[1]);
 		Paint.hudText(ctx, tr, "SESSION", 6, 5, Colors.muted());

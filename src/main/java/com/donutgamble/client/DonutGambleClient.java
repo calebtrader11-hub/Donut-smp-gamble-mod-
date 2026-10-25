@@ -25,6 +25,7 @@ public final class DonutGambleClient implements ClientModInitializer {
 	static KeyBinding OPEN_MANAGER;
 	private static KeyBinding OPEN_HUD_EDITOR;
 	private static KeyBinding TOGGLE_HUD;
+	private static KeyBinding TOGGLE_STREAMER;
 	private static KeyBinding FIRST_WIN;
 	private static KeyBinding FIRST_LOSE;
 	static GambleState state;
@@ -39,6 +40,7 @@ public final class DonutGambleClient implements ClientModInitializer {
 		OPEN_MANAGER = register("open_manager", GLFW.GLFW_KEY_HOME);
 		OPEN_HUD_EDITOR = register("open_hud_editor", GLFW.GLFW_KEY_END);
 		TOGGLE_HUD = register("toggle_hud", GLFW.GLFW_KEY_H);
+		TOGGLE_STREAMER = register("toggle_streamer", InputUtil.UNKNOWN_KEY.getCode());
 		FIRST_WIN = register("first_win", GLFW.GLFW_KEY_RIGHT_BRACKET);
 		FIRST_LOSE = register("first_lose", GLFW.GLFW_KEY_LEFT_BRACKET);
 
@@ -55,6 +57,9 @@ public final class DonutGambleClient implements ClientModInitializer {
 			}
 			while (TOGGLE_HUD.wasPressed()) {
 				state.toggleHud();
+			}
+			while (TOGGLE_STREAMER.wasPressed()) {
+				state.toggleStreamerMode();
 			}
 			while (FIRST_WIN.wasPressed()) {
 				state.resolveFirst(Outcome.PLAYER_WIN);

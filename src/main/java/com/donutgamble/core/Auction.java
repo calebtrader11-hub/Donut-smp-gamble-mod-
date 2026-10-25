@@ -18,7 +18,21 @@ public class Auction {
 	}
 
 	public long id;
+	/** Title shown everywhere (the item name unless a custom title was set). */
 	public String item;
+	/** Prize item registry id, e.g. "minecraft:spawner"; null/blank for a text-only auction. */
+	public String itemId;
+	public int quantity = 1;
+	public String description = "";
+	/** The exact prize stack (with components) as JSON, when picked from the inventory. */
+	public String stackData;
+	/** Per-auction timer rules; null means "use the global setting". */
+	public Boolean autoEnd;
+	public Integer antiSnipeSec;
+	/** What the HUD shows about bidders. */
+	public int showTop = 5;
+	public boolean showAmounts = true;
+	public boolean showShare = true;
 	/** What the prize costs you; counted as an expense when the auction ends with a winner. */
 	public long prizeCost;
 	public long startedAt;
@@ -141,9 +155,17 @@ public class Auction {
 
 	/** Plain-text recap shown in the GUI and exports. */
 	public List<String> summary() {
+		return summary(true);
+	}
+
+	/** @param includeProfit false leaves out the prize cost and profit line (Streamer Mode) */
+	public List<String> summary(boolean includeProfit) {
 		List<String> lines = new ArrayList<>();
 		String when = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(new Date(startedAt));
 		lines.add(item + " · " + status.name().toLowerCase(Locale.ROOT) + " · " + when);
+		if (description != null && !description.isBlank()) {
+			lines.add(description.trim());
+		}
 		List<Standing> r = rankings();
 		lines.add("Total $" + AmountParser.format(total()) + " from " + r.size() + (r.size() == 1 ? " player" : " players"));
 		if (winner != null) {
@@ -154,7 +176,7 @@ public class Auction {
 		} else if (!isLive()) {
 			lines.add("No winner");
 		}
-		if (prizeCost > 0) {
+		if (includeProfit && prizeCost > 0) {
 			lines.add("Prize cost $" + AmountParser.format(prizeCost) + " · profit $" + AmountParser.format(total() - prizeCost));
 		}
 		for (int i = 0; i < Math.min(5, r.size()); i++) {

@@ -12,17 +12,35 @@ public class AuctionManager {
 	public long nextRefundId = 1;
 
 	public Auction start(String item, int durationSec, long prizeCost, long now) {
+		return start(AuctionSetup.simple(item, durationSec, prizeCost), now);
+	}
+
+	public Auction start(AuctionSetup setup, long now) {
 		if (current != null && current.isLive()) {
 			throw new IllegalStateException("An auction is already running");
 		}
 		Auction a = new Auction();
 		a.id = nextId++;
-		a.item = item == null || item.isBlank() ? "Auction #" + a.id : item.trim();
-		a.prizeCost = prizeCost;
-		a.durationMs = Math.max(1, durationSec) * 1000L;
+		String title = setup.displayTitle();
+		a.item = title.isBlank() ? "Auction #" + a.id : title;
+		a.itemId = blankToNull(setup.itemId());
+		a.quantity = Math.max(1, setup.quantity());
+		a.description = setup.description() == null ? "" : setup.description().trim();
+		a.stackData = blankToNull(setup.stackData());
+		a.prizeCost = Math.max(0, setup.prizeCost());
+		a.autoEnd = setup.autoEnd();
+		a.antiSnipeSec = setup.antiSnipeSec();
+		a.showTop = Math.max(1, Math.min(10, setup.showTop()));
+		a.showAmounts = setup.showAmounts();
+		a.showShare = setup.showShare();
+		a.durationMs = Math.max(1, setup.durationSec()) * 1000L;
 		a.start(now);
 		current = a;
 		return a;
+	}
+
+	private static String blankToNull(String s) {
+		return s == null || s.isBlank() ? null : s;
 	}
 
 	public boolean isLive() {
@@ -38,7 +56,8 @@ public class AuctionManager {
 			return false;
 		}
 		current.addContribution(player, amount, now, txId, false);
-		long antiSnipe = cfg.auctionAntiSnipeSec * 1000L;
+		int snipeSec = current.antiSnipeSec != null ? current.antiSnipeSec : cfg.auctionAntiSnipeSec;
+		long antiSnipe = snipeSec * 1000L;
 		if (antiSnipe > 0 && current.status == Auction.Status.RUNNING && current.remaining(now) < antiSnipe) {
 			current.endsAt = now + antiSnipe;
 		}
@@ -47,7 +66,11 @@ public class AuctionManager {
 
 	/** Call regularly. Returns the auction if this call ended it because the timer ran out. */
 	public Auction tick(long now, GambleConfig cfg) {
-		if (cfg.auctionAutoEnd && current != null && current.status == Auction.Status.RUNNING && current.remaining(now) == 0) {
+		if (current == null) {
+			return null;
+		}
+		boolean autoEnd = current.autoEnd != null ? current.autoEnd : cfg.auctionAutoEnd;
+		if (autoEnd && current.status == Auction.Status.RUNNING && current.remaining(now) == 0) {
 			return end(now, cfg);
 		}
 		return null;

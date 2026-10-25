@@ -6,18 +6,22 @@ import com.donutgamble.client.ui.Paint;
 import com.donutgamble.client.ui.Regions;
 import com.donutgamble.client.ui.ScaledScreen;
 import com.donutgamble.client.ui.TextBox;
+import com.donutgamble.client.ui.Toggle;
 import com.donutgamble.core.AmountParser;
 import com.donutgamble.core.Auction;
 import com.donutgamble.core.FinanceReport;
 import com.donutgamble.core.Game;
 import com.donutgamble.core.PlayerStats;
 import com.donutgamble.core.PlayerTotal;
+import com.donutgamble.core.PrivacySettings;
+import com.donutgamble.core.PrivacySettings.Surface;
 import com.donutgamble.core.Standing;
 import com.donutgamble.core.Transaction;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
@@ -46,6 +50,7 @@ final class ManagerScreen extends ScaledScreen {
 		HISTORY("History", "Auctions", "Every finished auction"),
 		PAYMENTS("Payments", "Money", "Every payment in and out"),
 		FINANCE("Finance", "Money", "Profit and loss"),
+		STREAMER("Streamer", "System", "Hide private figures on stream"),
 		SETTINGS("Settings", "System", "Rules, look and data");
 
 		final String label;
@@ -87,7 +92,7 @@ final class ManagerScreen extends ScaledScreen {
 	/** Settings fields, applied on Enter, focus loss or leaving the section. */
 	private final Map<TextBox, Consumer<String>> commits = new LinkedHashMap<>();
 
-	private int wx, wy, ww, wh, cx, cy, cw, ch;
+	private int wx, wy, ww, wh, cx, cy, cw, ch, closeX;
 	private int mouseX, mouseY;
 	private DrawContext ctx;
 
@@ -123,6 +128,7 @@ final class ManagerScreen extends ScaledScreen {
 
 		Button close = Button.fit(0, wy + 6, "Close", Button.Variant.GHOST, this::close);
 		close.setX(wx + ww - 6 - close.getWidth());
+		closeX = close.getX();
 		addDrawableChild(close);
 
 		switch (section) {
@@ -132,6 +138,9 @@ final class ManagerScreen extends ScaledScreen {
 			case PAYMENTS -> initPayments();
 			case FINANCE -> initFinance(close.getX() - 4);
 			case SETTINGS -> initSettings();
+			case STREAMER -> initStreamer();
+			case DASHBOARD, LEADERBOARD -> {
+			}
 			default -> {
 			}
 		}
@@ -249,6 +258,18 @@ final class ManagerScreen extends ScaledScreen {
 		Paint.text(ctx, textRenderer, "Donut Gamble", wx + PAD + 12, wy + 10, Colors.INK);
 		Paint.text(ctx, textRenderer, section.label, cx, wy + 10, Colors.INK);
 		Paint.text(ctx, textRenderer, section.subtitle, cx + textRenderer.getWidth(section.label) + 8, wy + 10, Colors.INK_FAINT);
+		if (state.streaming()) {
+			String badge = state.preview ? "PREVIEW" : "STREAMER MODE";
+			int bw = textRenderer.getWidth(badge) + 16;
+			int rightEdge = section == Section.HISTORY || section == Section.FINANCE ? closeX - 90 : closeX - 4;
+			int bx = rightEdge - bw;
+			int subtitleEnd = cx + textRenderer.getWidth(section.label) + 8 + textRenderer.getWidth(section.subtitle);
+			if (bx > subtitleEnd + 4) {
+				Paint.pill(ctx, bx, wy + 8, bw, 12, Colors.alpha(Colors.RED, 0x40));
+				Paint.round(ctx, bx + 4, wy + 12, 4, 4, 2, Colors.RED);
+				Paint.text(ctx, textRenderer, badge, bx + 11, wy + 10, Colors.mix(Colors.RED, 0xFFFFFFFF, 0.4f));
+			}
+		}
 		Paint.hline(ctx, wx + 1, wx + ww - 1, wy + HEADER, Colors.LINE);
 
 		drawSidebar();
@@ -262,6 +283,7 @@ final class ManagerScreen extends ScaledScreen {
 			case PAYMENTS -> drawPayments();
 			case FINANCE -> drawFinance();
 			case SETTINGS -> drawSettings();
+			case STREAMER -> drawStreamer();
 		}
 		ctx.disableScissor();
 	}
@@ -315,6 +337,47 @@ final class ManagerScreen extends ScaledScreen {
 	}
 
 	// ================= building blocks =================
+
+	private boolean hides(Surface s) {
+		return state.hides(s);
+	}
+
+	/** In place of private figures while Streamer Mode is on. Nothing private is drawn. */
+	private void locked(int x, int y, int w, int h, String what) {
+		card(x, y, w, h);
+		int mx = x + w / 2;
+		int my = y + h / 2 - 14;
+		// padlock
+		Paint.round(ctx, mx - 6, my + 5, 12, 9, 2, Colors.INK_FAINT);
+		ctx.fill(mx - 4, my, mx - 2, my + 6, Colors.INK_FAINT);
+		ctx.fill(mx + 2, my, mx + 4, my + 6, Colors.INK_FAINT);
+		ctx.fill(mx - 4, my - 1, mx + 4, my + 1, Colors.INK_FAINT);
+		Paint.center(ctx, textRenderer, what + " hidden in Streamer Mode", mx, my + 20, Colors.INK_DIM);
+		link("Streamer settings →", mx - textRenderer.getWidth("Streamer settings →") / 2, my + 32, Colors.accent(), () -> show(Section.STREAMER));
+	}
+
+	/** A small stat tile whose value is replaced while Streamer Mode hides it. */
+	private void privateStat(int x, int y, int w, String label, String value, int color, boolean hidden) {
+		if (hidden) {
+			card(x, y, w, 30);
+			Paint.label(ctx, textRenderer, label, x + 7, y + 6);
+			text("Hidden", x + 7, y + 17, Colors.INK_FAINT);
+		} else {
+			stat(x, y, w, label, value, color);
+		}
+	}
+
+	/** Draws an item icon at (x, y), optionally scaled. */
+	private void icon(ItemStack stack, int x, int y, float scale) {
+		if (stack.isEmpty()) {
+			return;
+		}
+		ctx.getMatrices().pushMatrix();
+		ctx.getMatrices().translate(x, y);
+		ctx.getMatrices().scale(scale, scale);
+		ctx.drawItem(stack, 0, 0);
+		ctx.getMatrices().popMatrix();
+	}
 
 	private void card(int x, int y, int w, int h) {
 		Paint.card(ctx, x, y, w, h, 4, Colors.CARD, Colors.LINE);
@@ -411,10 +474,11 @@ final class ManagerScreen extends ScaledScreen {
 		FinanceReport life = state.finance.report(0);
 		int gap = 6;
 		int tw = (cw - 3 * gap) / 4;
-		stat(cx, cy, tw, "Session", Fmt.signed(session.net()), Colors.profit(session.net()));
-		stat(cx + (tw + gap), cy, tw, "Received", Fmt.money(session.received()), Colors.INK);
-		stat(cx + 2 * (tw + gap), cy, tw, "Paid out", Fmt.money(session.paidOut()), Colors.INK);
-		stat(cx + 3 * (tw + gap), cy, tw, "Lifetime", Fmt.signed(life.net()), Colors.profit(life.net()));
+		boolean hide = hides(Surface.DASHBOARD);
+		privateStat(cx, cy, tw, "Session", Fmt.signed(session.net()), Colors.profit(session.net()), hide);
+		privateStat(cx + (tw + gap), cy, tw, "Received", Fmt.money(session.received()), Colors.INK, hide);
+		privateStat(cx + 2 * (tw + gap), cy, tw, "Paid out", Fmt.money(session.paidOut()), Colors.INK, hide);
+		privateStat(cx + 3 * (tw + gap), cy, tw, "Lifetime", Fmt.signed(life.net()), Colors.profit(life.net()), hide);
 
 		int y = cy + 30 + gap;
 		int half = (cw - gap) / 2;
@@ -424,15 +488,21 @@ final class ManagerScreen extends ScaledScreen {
 		Auction a = state.auctions.current;
 		if (a != null) {
 			long left = a.remaining(System.currentTimeMillis());
-			text(Paint.fit(textRenderer, a.item, half - 50), cx + 7, y + 18, Colors.INK);
+			ItemStack prize = ItemIcons.of(a);
+			int tx = prize.isEmpty() ? cx + 7 : cx + 26;
+			icon(prize, cx + 7, y + 14, 1f);
+			text(Paint.fit(textRenderer, a.item, half - (tx - cx) - 40), tx, y + 18, Colors.INK);
 			right(Fmt.clock(left), cx + half - 7, y + 18, a.status == Auction.Status.PAUSED ? Colors.GOLD : Colors.GREEN);
 			Standing leader = a.leader();
-			text("Total " + Fmt.money(a.total()) + " · " + a.rankings().size() + " bidders", cx + 7, y + 30, Colors.INK_DIM);
-			text(leader == null ? "No bids yet" : "Leader " + Paint.fit(textRenderer, leader.player(), half - 90) + " " + Fmt.money(leader.total()),
-				cx + 7, y + 42, Colors.GOLD);
+			boolean amounts = !hides(Surface.AUCTION_HUD);
+			String bidders = a.rankings().size() + " bidders";
+			text(amounts ? "Total " + Fmt.money(a.total()) + " · " + bidders : bidders, cx + 7, y + 31, Colors.INK_DIM);
+			String lead = leader == null ? "No bids yet"
+				: "Leader " + Paint.fit(textRenderer, leader.player(), half - 90) + (amounts ? " " + Fmt.money(leader.total()) : "");
+			text(lead, cx + 7, y + 42, Colors.GOLD);
 		} else {
 			text("No auction running", cx + 7, y + 18, Colors.INK_DIM);
-			link("Start one →", cx + 7, y + 34, Colors.accent(), () -> show(Section.AUCTION));
+			link("Set one up →", cx + 7, y + 34, Colors.accent(), () -> MinecraftClient.getInstance().setScreen(new AuctionSetupScreen(state, this)));
 		}
 
 		int qx = cx + half + gap;
@@ -458,12 +528,12 @@ final class ManagerScreen extends ScaledScreen {
 		}
 		int rows = Math.max(0, (listH - 20) / ROW);
 		for (int i = 0; i < Math.min(rows, recent.size()); i++) {
-			txRow(recent.get(i), cx + 7, y + 19 + i * ROW, cw - 14, false);
+			txRow(recent.get(i), cx + 7, y + 19 + i * ROW, cw - 14, false, hide);
 		}
 	}
 
 	/** time · type · player · amount · source/note · [Void] */
-	private void txRow(Transaction t, int x, int y, int w, boolean interactive) {
+	private void txRow(Transaction t, int x, int y, int w, boolean interactive, boolean hideAmount) {
 		int ink = t.voided ? Colors.INK_FAINT : Colors.INK;
 		text(time(CLOCK, t.timestamp), x, y, Colors.INK_FAINT);
 		String type = switch (t.type) {
@@ -484,7 +554,9 @@ final class ManagerScreen extends ScaledScreen {
 			text(name, x + 80, y, ink);
 		}
 		int amountColor = t.voided ? Colors.INK_FAINT : t.type == Transaction.Type.INCOMING ? Colors.GREEN : Colors.INK;
-		right(Fmt.money(t.amount), x + 214, y, amountColor);
+		if (!hideAmount) {
+			right(Fmt.money(t.amount), x + 214, y, amountColor);
+		}
 		String detail = t.source.name().toLowerCase(Locale.ROOT) + (t.note.isEmpty() ? "" : " · " + t.note);
 		int detailRight = interactive ? x + w - 34 : x + w;
 		text(Paint.fit(textRenderer, detail, detailRight - (x + 222)), x + 222, y, Colors.INK_FAINT);
@@ -524,7 +596,9 @@ final class ManagerScreen extends ScaledScreen {
 					Paint.round(ctx, cx + 2, y - 3, listW - 4, ROW, 2, Colors.alpha(Colors.accent(), 0x30));
 				}
 				text(Paint.fit(textRenderer, p.player(), listW - 64), cx + 7, y, sel ? Colors.INK : Colors.INK_DIM);
-				right(Fmt.signed(p.net()), cx + listW - 8, y, Colors.profit(p.net()));
+				if (!hides(Surface.PLAYER_STATS)) {
+					right(Fmt.signed(p.net()), cx + listW - 8, y, Colors.profit(p.net()));
+				}
 				regions.add(cx + 2, y - 3, listW - 4, ROW, () -> selectedPlayer = p.player());
 			});
 		}
@@ -539,14 +613,17 @@ final class ManagerScreen extends ScaledScreen {
 		}
 		text(Paint.fit(textRenderer, p.player(), dw - 16), dx + 8, cy + 8, Colors.INK);
 		Paint.hline(ctx, dx + 1, dx + dw - 1, cy + 22, Colors.LINE);
+		boolean hideMoney = hides(Surface.PLAYER_STATS);
+		boolean hideBids = hides(Surface.AUCTION_HUD);
+		String hidden = "Hidden";
 		String[][] cells = {
-			{"Paid you", Fmt.money(p.paidYou())},
-			{"You paid", Fmt.money(p.youPaid())},
-			{"Net", Fmt.signed(p.net())},
+			{"Paid you", hideMoney ? hidden : Fmt.money(p.paidYou())},
+			{"You paid", hideMoney ? hidden : Fmt.money(p.youPaid())},
+			{"Net", hideMoney ? hidden : Fmt.signed(p.net())},
 			{"W-L-T", p.wins() + "-" + p.losses() + "-" + p.ties()},
-			{"Wagered", Fmt.money(p.wagered())},
-			{"Bets net", Fmt.signed(p.houseNetFromBets())},
-			{"Bids", Fmt.money(p.auctionTotal())},
+			{"Wagered", hideMoney ? hidden : Fmt.money(p.wagered())},
+			{"Bets net", hideMoney ? hidden : Fmt.signed(p.houseNetFromBets())},
+			{"Bids", hideBids ? hidden : Fmt.money(p.auctionTotal())},
 			{"Won", p.auctionsWon() + (p.auctionsWon() == 1 ? " auction" : " auctions")},
 		};
 		int colW = (dw - 16) / 2;
@@ -555,7 +632,8 @@ final class ManagerScreen extends ScaledScreen {
 			int y = cy + 28 + (i / 2) * 22;
 			Paint.label(ctx, textRenderer, cells[i][0], x, y);
 			String v = cells[i][1];
-			text(v, x, y + 10, v.startsWith("+") ? Colors.GREEN : v.startsWith("-") ? Colors.RED : Colors.INK);
+			int vc = v.equals(hidden) ? Colors.INK_FAINT : v.startsWith("+") ? Colors.GREEN : v.startsWith("-") ? Colors.RED : Colors.INK;
+			text(v, x, y + 10, vc);
 		}
 		int hy = cy + 28 + 4 * 22 + 2;
 		Paint.hline(ctx, dx + 1, dx + dw - 1, hy - 4, Colors.LINE);
@@ -570,36 +648,25 @@ final class ManagerScreen extends ScaledScreen {
 			String what = (t.type == Transaction.Type.INCOMING ? "in · " : "out · ") + t.source.name().toLowerCase(Locale.ROOT);
 			text(what, dx + 40, y, t.voided ? Colors.INK_FAINT : Colors.INK_DIM);
 			int c = t.voided ? Colors.INK_FAINT : t.type == Transaction.Type.INCOMING ? Colors.GREEN : Colors.RED;
-			right(Fmt.money(t.amount), dx + dw - 8, y, c);
+			if (!hideMoney) {
+				right(Fmt.money(t.amount), dx + dw - 8, y, c);
+			}
 		}
-		link("All their payments →", dx + 8, cy + ch - 14, Colors.accent(), () -> {
-			DRAFTS.put("payments.search", p.player());
-			show(Section.PAYMENTS);
-		});
+		if (!hides(Surface.FINANCE)) {
+			link("All their payments →", dx + 8, cy + ch - 14, Colors.accent(), () -> {
+				DRAFTS.put("payments.search", p.player());
+				show(Section.PAYMENTS);
+			});
+		}
 	}
 
 	// ================= Live Auction =================
 
-	private static final int FORM_X = 90;
-
 	private void initAuction() {
 		Auction a = state.auctions.current;
 		if (a == null) {
-			int fx = cx + FORM_X;
-			box("auction.item", fx, cy + 20, cw - FORM_X - 8, "e.g. Skeleton Spawner");
-			TextBox len = box("auction.duration", fx, cy + 40, 70, "5m");
-			if (draft("auction.duration").isEmpty()) {
-				len.setText(formatDuration(state.config.auctionDefaultDurationSec));
-			}
-			box("auction.cost", fx, cy + 60, 70, "optional");
-			button(fx, cy + 82, "Start auction", Button.Variant.PRIMARY, () -> {
-				int sec = parseDuration(draft("auction.duration"), state.config.auctionDefaultDurationSec);
-				if (state.startAuction(draft("auction.item"), sec, AmountParser.parseOrZero(draft("auction.cost")))) {
-					DRAFTS.remove("auction.item");
-					DRAFTS.remove("auction.cost");
-					DRAFTS.remove("auction.duration");
-				}
-			});
+			button(cx + 8, cy + 54, "Set up auction", Button.Variant.PRIMARY,
+				() -> MinecraftClient.getInstance().setScreen(new AuctionSetupScreen(state, this)));
 			return;
 		}
 		int y = cy + 72;
@@ -626,39 +693,64 @@ final class ManagerScreen extends ScaledScreen {
 	private void drawAuction() {
 		Auction a = state.auctions.current;
 		if (a == null) {
-			card(cx, cy, cw, 106);
-			cardTitle(cx, cy, "New auction");
-			right("While it runs, every /pay counts toward it", cx + cw - 8, cy + 6, Colors.INK_FAINT);
-			text("Item", cx + 8, cy + 24, Colors.INK_DIM);
-			text("Length", cx + 8, cy + 44, Colors.INK_DIM);
-			text("Prize cost", cx + 8, cy + 64, Colors.INK_DIM);
-			text("5m · 90s · 2:30", cx + FORM_X + 78, cy + 44, Colors.INK_FAINT);
-			text("counted as an expense", cx + FORM_X + 78, cy + 64, Colors.INK_FAINT);
+			card(cx, cy, cw, 78);
+			cardTitle(cx, cy, "No auction running");
+			text("Pick any item as the prize, set the timer and what viewers see,", cx + 8, cy + 20, Colors.INK_DIM);
+			text("then start. While it runs, every /pay counts toward it.", cx + 8, cy + 31, Colors.INK_DIM);
 
-			int ry = cy + 112;
-			card(cx, ry, cw, cy + ch - ry);
-			cardTitle(cx, ry, "Rules");
+			int ry = cy + 84;
+			int rh = 42;
+			card(cx, ry, cw, rh);
+			cardTitle(cx, ry, "Recent prizes");
+			List<String> recent = state.config.recentItems;
+			if (recent.isEmpty()) {
+				text("Items you auction show up here", cx + 8, ry + 22, Colors.INK_FAINT);
+			}
+			int ix = cx + 8;
+			for (String id : recent) {
+				if (ix + 20 > cx + cw - 8) {
+					break;
+				}
+				ItemStack stack = ItemIcons.fromId(id, 1);
+				if (stack.isEmpty()) {
+					continue;
+				}
+				boolean hover = regions.hovered(mouseX, mouseY, ix, ry + 17, 20, 20);
+				Paint.round(ctx, ix, ry + 17, 20, 20, 3, hover ? Colors.alpha(Colors.accent(), 0x40) : Colors.CARD_HI);
+				icon(stack, ix + 2, ry + 19, 1f);
+				regions.add(ix, ry + 17, 20, 20, () -> MinecraftClient.getInstance().setScreen(AuctionSetupScreen.withItem(state, this, stack)));
+				ix += 23;
+			}
+
+			int rulesY = ry + rh + 6;
+			card(cx, rulesY, cw, cy + ch - rulesY);
+			cardTitle(cx, rulesY, "Default rules");
 			String[][] rules = {
 				{"Payments go to the auction", onOff(state.config.routePaymentsToAuction)},
 				{"End when the timer hits 0", onOff(state.config.auctionAutoEnd)},
 				{"Refund everyone but the winner", onOff(state.config.auctionRefundLosers)},
 				{"Anti-snipe", state.config.auctionAntiSnipeSec > 0 ? state.config.auctionAntiSnipeSec + "s" : "Off"},
-				{"Minimum payment", state.config.auctionMinContribution > 0 ? Fmt.money(state.config.auctionMinContribution) : "None"},
 			};
-			int y = ry + 19;
+			int y = rulesY + 19;
 			for (String[] r : rules) {
+				if (y > cy + ch - 10) {
+					break;
+				}
 				text(r[0], cx + 8, y, Colors.INK_DIM);
 				right(r[1], cx + cw - 8, y, Colors.INK);
 				y += 12;
 			}
-			link("Change in Settings →", cx + 8, Math.min(y + 2, cy + ch - 12), Colors.accent(), () -> show(Section.SETTINGS));
 			return;
 		}
 
 		long left = a.remaining(System.currentTimeMillis());
 		boolean paused = a.status == Auction.Status.PAUSED;
 		card(cx, cy, cw, 94);
-		text(Paint.fit(textRenderer, a.item, cw - 70), cx + 8, cy + 8, Colors.INK);
+		ItemStack prize = ItemIcons.of(a);
+		int tx = prize.isEmpty() ? cx + 8 : cx + 26;
+		icon(prize, cx + 6, cy + 4, 1f);
+		String title = a.item + (a.description == null || a.description.isBlank() ? "" : "  ·  " + a.description);
+		text(Paint.fit(textRenderer, title, cw - (tx - cx) - 60), tx, cy + 8, Colors.INK);
 		String status = paused ? "PAUSED" : "LIVE";
 		int sc = paused ? Colors.GOLD : Colors.GREEN;
 		int sw = textRenderer.getWidth(status) + 10;
@@ -671,7 +763,7 @@ final class ManagerScreen extends ScaledScreen {
 		Standing leader = a.leader();
 		int sx = cx + cw / 2;
 		Paint.label(ctx, textRenderer, "Collected", sx, cy + 24);
-		text(Fmt.money(a.total()), sx, cy + 34, Colors.GREEN);
+		text(hides(Surface.AUCTION_HUD) ? "Hidden" : Fmt.money(a.total()), sx, cy + 34, hides(Surface.AUCTION_HUD) ? Colors.INK_FAINT : Colors.GREEN);
 		Paint.label(ctx, textRenderer, "Leader", sx + 70, cy + 24);
 		text(leader == null ? "-" : Paint.fit(textRenderer, leader.player(), cw / 2 - 78), sx + 70, cy + 34, Colors.GOLD);
 
@@ -692,7 +784,9 @@ final class ManagerScreen extends ScaledScreen {
 		Paint.round(ctx, x + 6, y - 2, Math.max(2, barW), ROW - 2, 2, Colors.alpha(Colors.accent(), 0x1C));
 		text(Integer.toString(i + 1), x + 10, y, i == 0 ? Colors.GOLD : Colors.INK_FAINT);
 		text(Paint.fit(textRenderer, s.player(), w / 2 - 34), x + 26, y, i == 0 ? Colors.GOLD : Colors.INK);
-		right(Fmt.money(s.total()), x + w / 2 + 40, y, Colors.INK);
+		if (!hides(Surface.AUCTION_HUD)) {
+			right(Fmt.money(s.total()), x + w / 2 + 40, y, Colors.INK);
+		}
 		text(s.count() + (s.count() == 1 ? " payment" : " payments"), x + w / 2 + 52, y, Colors.INK_FAINT);
 		right(Math.round(s.share() * 100) + "%", x + w - 10, y, Colors.INK_DIM);
 	}
@@ -706,8 +800,12 @@ final class ManagerScreen extends ScaledScreen {
 			empty("No auctions yet", cx, cy, cw, ch);
 			return;
 		}
-		text(Paint.fit(textRenderer, a.item, cw - 120), cx + 8, cy + 8, Colors.INK);
-		right((a.isLive() ? "live" : a.status.name().toLowerCase(Locale.ROOT)) + " · " + Fmt.money(a.total()), cx + cw - 8, cy + 8, Colors.INK_DIM);
+		ItemStack prize = ItemIcons.of(a);
+		int tx = prize.isEmpty() ? cx + 8 : cx + 26;
+		icon(prize, cx + 6, cy + 4, 1f);
+		text(Paint.fit(textRenderer, a.item, cw - (tx - cx) - 110), tx, cy + 8, Colors.INK);
+		String status = a.isLive() ? "live" : a.status.name().toLowerCase(Locale.ROOT);
+		right(hides(Surface.AUCTION_HUD) ? status : status + " · " + Fmt.money(a.total()), cx + cw - 8, cy + 8, Colors.INK_DIM);
 		Paint.hline(ctx, cx + 1, cx + cw - 1, cy + 22, Colors.LINE);
 		List<Standing> r = a.rankings();
 		if (r.isEmpty()) {
@@ -747,10 +845,15 @@ final class ManagerScreen extends ScaledScreen {
 			if (on || regions.hovered(mouseX, mouseY, cx + 2, y, listW - 4, 23)) {
 				Paint.round(ctx, cx + 2, y, listW - 4, 23, 3, on ? Colors.alpha(Colors.accent(), 0x30) : Colors.CARD_HI);
 			}
-			text(Paint.fit(textRenderer, a.item, listW - 60), cx + 8, y + 3, on ? Colors.INK : Colors.INK_DIM);
-			right(Fmt.money(a.total()), cx + listW - 8, y + 3, Colors.INK);
+			ItemStack prize = ItemIcons.of(a);
+			int tx = prize.isEmpty() ? cx + 8 : cx + 26;
+			icon(prize, cx + 6, y + 3, 1f);
+			text(Paint.fit(textRenderer, a.item, listW - (tx - cx) - 52), tx, y + 3, on ? Colors.INK : Colors.INK_DIM);
+			if (!hides(Surface.AUCTION_HUD)) {
+				right(Fmt.money(a.total()), cx + listW - 8, y + 3, Colors.INK);
+			}
 			String sub = time(DAY, a.startedAt) + " · " + (a.winner != null ? a.winner : a.status.name().toLowerCase(Locale.ROOT));
-			text(Paint.fit(textRenderer, sub, listW - 16), cx + 8, y + 13, Colors.INK_FAINT);
+			text(Paint.fit(textRenderer, sub, listW - (tx - cx) - 8), tx, y + 13, Colors.INK_FAINT);
 			long id = a.id;
 			regions.add(cx + 2, y, listW - 4, 23, () -> selectedAuction = id);
 			y += 24;
@@ -760,12 +863,22 @@ final class ManagerScreen extends ScaledScreen {
 		int dw = cx + cw - dx;
 		card(dx, cy, dw, ch);
 		int sy = cy + 8;
-		List<String> lines = sel.summary();
+		ItemStack selPrize = ItemIcons.of(sel);
+		if (!selPrize.isEmpty()) {
+			Paint.round(ctx, dx + dw - 32, cy + 6, 24, 24, 4, Colors.alpha(Colors.accent(), 0x30));
+			icon(selPrize, dx + dw - 28, cy + 10, 1f);
+		}
+		List<String> lines = new ArrayList<>(sel.summary(!hides(Surface.FINANCE)));
+		if (hides(Surface.AUCTION_HUD)) {
+			lines.removeIf(l -> l.startsWith("Total ") || l.startsWith("#"));
+			lines.replaceAll(l -> l.startsWith("Winner:") ? l.replaceAll(" \\(\\$[^)]*\\)", "") : l);
+		}
 		int limit = cy + ch - 24;
 		for (int i = 0; i < lines.size() && sy < limit; i++) {
 			String line = lines.get(i);
 			int color = line.startsWith("Winner") ? Colors.GOLD : line.startsWith("#") ? Colors.INK_DIM : Colors.INK;
-			for (var wrapped : textRenderer.wrapLines(Text.literal(line), dw - 16)) {
+			Paint.record(line);
+			for (var wrapped : textRenderer.wrapLines(Text.literal(line), dw - 16 - (i == 0 && !selPrize.isEmpty() ? 28 : 0))) {
 				if (sy >= limit) {
 					break;
 				}
@@ -790,6 +903,9 @@ final class ManagerScreen extends ScaledScreen {
 	// ================= Payments =================
 
 	private void initPayments() {
+		if (hides(Surface.FINANCE)) {
+			return;
+		}
 		TextBox search = box("payments.search", cx, cy, 150, "Search: player, 200m, payout");
 		search.setChangedListener(s -> {
 			DRAFTS.put("payments.search", s);
@@ -820,6 +936,10 @@ final class ManagerScreen extends ScaledScreen {
 	}
 
 	private void drawPayments() {
+		if (hides(Surface.FINANCE)) {
+			locked(cx, cy, cw, ch, "Payments are");
+			return;
+		}
 		List<Transaction> list = state.finance.search(draft("payments.search"));
 		int top = cy + TextBox.HEIGHT + 6;
 		int h = ch - 2 * (TextBox.HEIGHT + 6);
@@ -827,7 +947,7 @@ final class ManagerScreen extends ScaledScreen {
 		if (list.isEmpty()) {
 			empty(draft("payments.search").isEmpty() ? "No payments yet" : "No matches", cx, top, cw, h);
 		} else {
-			list(cx, top, cw, h, list.size(), Section.PAYMENTS, (i, y) -> txRow(list.get(i), cx + 7, y, cw - 14, true));
+			list(cx, top, cw, h, list.size(), Section.PAYMENTS, (i, y) -> txRow(list.get(i), cx + 7, y, cw - 14, true, false));
 		}
 		text(list.size() + (list.size() == 1 ? " entry" : " entries"), cx + 156, cy + 4, Colors.INK_FAINT);
 		text("Add", cx, cy + ch - 12, Colors.INK_DIM);
@@ -836,6 +956,9 @@ final class ManagerScreen extends ScaledScreen {
 	// ================= Finance =================
 
 	private void initFinance(int rightX) {
+		if (hides(Surface.FINANCE)) {
+			return;
+		}
 		buttonRight(rightX, wy + 6, "Export report", Button.Variant.SECONDARY, state::exportReport);
 		int y = cy + ch - TextBox.HEIGHT;
 		box("finance.note", cx + 48, y, 120, "What for");
@@ -851,6 +974,10 @@ final class ManagerScreen extends ScaledScreen {
 	}
 
 	private void drawFinance() {
+		if (hides(Surface.FINANCE)) {
+			locked(cx, cy, cw, ch, "Finance is");
+			return;
+		}
 		FinanceReport s = state.finance.report(state.ledger.sessionStart);
 		FinanceReport l = state.finance.report(0);
 		int tableW = Math.min(240, cw * 3 / 5);
@@ -1033,6 +1160,73 @@ final class ManagerScreen extends ScaledScreen {
 		right("daily, 7 kept", col2 + rw - 8, dy + 6, Colors.INK_FAINT);
 
 		text("Press Enter to apply a value", cx + 2, cy + ah + 6, Colors.INK_FAINT);
+	}
+
+	// ================= Streamer =================
+
+	private static final Object[][] SURFACES = {
+		{Surface.DASHBOARD, "Dashboard", "Session/lifetime net, received, paid out"},
+		{Surface.PAPER_HUD, "Queue HUD", "Game profit, Stats tab, total owed"},
+		{Surface.AUCTION_HUD, "Auction bids", "Bid amounts and totals (public by default)"},
+		{Surface.TOASTS, "Pop-ups", "Profit, exports, backups (others stay)"},
+		{Surface.PLAYER_STATS, "Player stats", "What each player paid you and was paid"},
+		{Surface.FINANCE, "Finance", "Finance and Payments pages, profit HUD"},
+	};
+	private static final int STREAM_ROW = 16;
+
+	private int streamerTop() {
+		return cy + 52;
+	}
+
+	private void initStreamer() {
+		PrivacySettings p = state.config.privacy;
+		int y = cy + 6;
+		Button main = buttonRight(cx + cw - 8, y, p.streamerMode ? "Turn off" : "Turn on",
+			p.streamerMode ? Button.Variant.SECONDARY : Button.Variant.PRIMARY, state::toggleStreamerMode);
+		buttonRight(main.getX() - 4, y, state.preview ? "Stop preview" : "Preview", Button.Variant.SECONDARY, () -> state.preview = !state.preview);
+
+		int ty = streamerTop() + 19;
+		for (Object[] row : SURFACES) {
+			Surface surface = (Surface) row[0];
+			addDrawableChild(new Toggle(cx + cw - 8 - Toggle.W, ty, (String) row[1], () -> p.get(surface), () -> {
+				p.set(surface, !p.get(surface));
+				state.save();
+			}));
+			ty += STREAM_ROW;
+		}
+	}
+
+	private void drawStreamer() {
+		PrivacySettings p = state.config.privacy;
+		card(cx, cy, cw, 46);
+		cardTitle(cx, cy, "Streamer Mode");
+		boolean on = p.streamerMode;
+		Paint.round(ctx, cx + 8, cy + 22, 6, 6, 3, on ? Colors.RED : Colors.INK_FAINT);
+		text(on ? "On: private figures are not drawn" : state.preview ? "Previewing what viewers would see" : "Off: everything is shown",
+			cx + 18, cy + 21, on || state.preview ? Colors.INK : Colors.INK_DIM);
+		text(Paint.fit(textRenderer, "Auction, timer, bidders and game activity stay visible", cw - 16), cx + 8, cy + 33, Colors.INK_FAINT);
+
+		int top = streamerTop();
+		int h = 19 + SURFACES.length * STREAM_ROW + 2;
+		card(cx, top, cw, h);
+		cardTitle(cx, top, "Hide while streaming");
+		int y = top + 19;
+		for (Object[] row : SURFACES) {
+			text((String) row[1], cx + 8, y + 1, Colors.INK);
+			text(Paint.fit(textRenderer, (String) row[2], cw - 110), cx + 80, y + 1, Colors.INK_FAINT);
+			y += STREAM_ROW;
+		}
+
+		int ny = top + h + 6;
+		String note = "This only stops the mod drawing private figures in Minecraft. It can't hide other apps or windows your stream captures.";
+		Paint.record(note);
+		for (var line : textRenderer.wrapLines(Text.literal(note), cw)) {
+			if (ny > cy + ch - 9) {
+				break;
+			}
+			ctx.drawText(textRenderer, line, cx, ny, Colors.INK_FAINT, false);
+			ny += 10;
+		}
 	}
 
 	// ================= durations =================

@@ -6,6 +6,7 @@ import com.donutgamble.client.ui.Regions;
 import com.donutgamble.core.Auction;
 import com.donutgamble.core.Bet;
 import com.donutgamble.core.Game;
+import com.donutgamble.core.PrivacySettings;
 import com.donutgamble.core.Refund;
 import com.donutgamble.core.Standing;
 import com.donutgamble.core.Stats;
@@ -71,7 +72,7 @@ final class QueueHud extends HudElement {
 	private static final int TAB_GAP = 3;
 	private static final int LETTER = 11;
 	private static final int MAX_ROWS = 10;
-	private static final int AUCTION_RANKS = 5;
+	private static final int ICON_ROW = 18;
 
 	private final GambleState state;
 	private final Anim tabX = new Anim(-1);
@@ -92,8 +93,22 @@ final class QueueHud extends HudElement {
 		return new int[]{6, 6};
 	}
 
+	/** Streamer Mode hides per-game profit, the Stats tab and the total owed. */
+	private boolean hideMoney() {
+		return state.hides(PrivacySettings.Surface.PAPER_HUD);
+	}
+
+	private List<Tab> tabs() {
+		List<Tab> list = new ArrayList<>(List.of(Tab.values()));
+		if (hideMoney()) {
+			list.remove(Tab.STATS);
+		}
+		return list;
+	}
+
 	Tab tab() {
-		return Tab.parse(state.config.activeTab);
+		Tab t = Tab.parse(state.config.activeTab);
+		return tabs().contains(t) ? t : Tab.PAPER;
 	}
 
 	private void setTab(Tab t) {
@@ -107,15 +122,20 @@ final class QueueHud extends HudElement {
 	int[] size(TextRenderer tr, boolean editing) {
 		Tab tab = tab();
 		int width = Math.max(tabsWidth(tr), contentWidth(tr, tab));
-		return new int[]{width, PAD + TAB_H + 4 + contentRows(tab) * ROW + PAD - 3};
+		return new int[]{width, PAD + TAB_H + 4 + contentRows(tab) * ROW + extraHeight(tab) + PAD - 3};
 	}
 
 	private int tabsWidth(TextRenderer tr) {
 		int w = 2 * PAD - TAB_GAP;
-		for (Tab t : Tab.values()) {
+		for (Tab t : tabs()) {
 			w += tr.getWidth(tabLabel(t)) + 8 + TAB_GAP;
 		}
 		return w;
+	}
+
+	/** The live auction's title row is taller when it shows the prize icon. */
+	private int extraHeight(Tab tab) {
+		return tab == Tab.AUCTION && !ItemIcons.of(state.auctions.current).isEmpty() ? ICON_ROW - ROW : 0;
 	}
 
 	private int contentRows(Tab tab) {
@@ -128,7 +148,8 @@ final class QueueHud extends HudElement {
 				return 3;
 			}
 			int ranks = a.rankings().size();
-			return 2 + Math.max(1, Math.min(AUCTION_RANKS, ranks)) + (ranks > AUCTION_RANKS ? 1 : 0) + 1;
+			int top = a.showTop;
+			return 2 + Math.max(1, Math.min(top, ranks)) + (ranks > top ? 1 : 0) + 1;
 		}
 		List<?> list = tab == Tab.OWE ? oweRows() : state.ledger.pending(tab.game);
 		int shown = Math.min(MAX_ROWS, list.size());
@@ -149,8 +170,9 @@ final class QueueHud extends HudElement {
 				}
 				return w;
 			}
-			w = Math.max(w, tr.getWidth(a.item + "   99:99 paused") + 2 * PAD);
-			return Math.max(w, auctionAmountX(tr, a.rankings()) + tr.getWidth("$999.99m   100%") + PAD + 4);
+			int icon = ItemIcons.of(a).isEmpty() ? 0 : 20;
+			w = Math.max(w, icon + tr.getWidth(a.item + "   99:99 paused") + 2 * PAD);
+			return Math.max(w, auctionAmountX(tr, a) + tr.getWidth("$999.99m   100%") + PAD + 4);
 		}
 		if (tab == Tab.OWE) {
 			List<OweRow> owed = oweRows();
@@ -203,7 +225,7 @@ final class QueueHud extends HudElement {
 	private void drawTabs(Tab active) {
 		int x = PAD;
 		int y = PAD;
-		for (Tab t : Tab.values()) {
+		for (Tab t : tabs()) {
 			String label = tabLabel(t);
 			int w = tr.getWidth(label) + 8;
 			if (t == active) {
@@ -252,9 +274,13 @@ final class QueueHud extends HudElement {
 	private void drawGame(Game game, int y) {
 		List<Bet> queue = state.ledger.pending(game);
 		List<Bet> shown = queue.subList(0, Math.min(MAX_ROWS, queue.size()));
-		long net = state.ledger.sessionStats(game).net();
-		int x = Paint.hudText(ctx, tr, game.displayName + " profit ", PAD, y, Colors.muted());
-		Paint.hudText(ctx, tr, Fmt.signed(net), x, y, Colors.profit(net));
+		if (hideMoney()) {
+			Paint.hudText(ctx, tr, game.displayName + " · " + queue.size() + " waiting", PAD, y, Colors.muted());
+		} else {
+			long net = state.ledger.sessionStats(game).net();
+			int x = Paint.hudText(ctx, tr, game.displayName + " profit ", PAD, y, Colors.muted());
+			Paint.hudText(ctx, tr, Fmt.signed(net), x, y, Colors.profit(net));
+		}
 		y += ROW;
 
 		if (shown.isEmpty()) {
@@ -305,9 +331,15 @@ final class QueueHud extends HudElement {
 
 	// ---- auction tab ----
 
+	/** Bid amounts and totals are public unless Streamer Mode is set to hide the auction HUD. */
+	private boolean showAmounts(Auction a) {
+		return a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
+	}
+
 	private String lastLine(Auction last) {
+		boolean amounts = !state.hides(PrivacySettings.Surface.AUCTION_HUD);
 		return last.winner != null
-			? "Last: " + last.item + " → " + last.winner + " " + Fmt.money(last.total())
+			? "Last: " + last.item + " → " + last.winner + (amounts ? " " + Fmt.money(last.total()) : "")
 			: "Last: " + last.item + " (" + last.status.name().toLowerCase(Locale.ROOT) + ")";
 	}
 
@@ -321,8 +353,8 @@ final class QueueHud extends HudElement {
 				Paint.hudText(ctx, tr, lastLine(last), PAD, y, Colors.text());
 			}
 			y += ROW;
-			int x = link(PAD, y, "Start " + Fmt.clock(state.config.auctionDefaultDurationSec * 1000L), Colors.GREEN,
-				() -> state.startAuction("", state.config.auctionDefaultDurationSec, 0));
+			int x = link(PAD, y, "Set up auction", Colors.GREEN,
+				() -> net.minecraft.client.MinecraftClient.getInstance().setScreen(new AuctionSetupScreen(state, null)));
 			link(x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.AUCTION));
 			return;
 		}
@@ -330,31 +362,45 @@ final class QueueHud extends HudElement {
 		long left = a.remaining(System.currentTimeMillis());
 		boolean paused = a.status == Auction.Status.PAUSED;
 		String clock = Fmt.clock(left) + (paused ? " paused" : "");
-		Paint.hudText(ctx, tr, a.item, PAD, y, Colors.text());
 		int clockColor = paused ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.GREEN;
-		Paint.hudText(ctx, tr, clock, width - PAD - tr.getWidth(clock), y, clockColor);
-		y += ROW;
+		var icon = ItemIcons.of(a);
+		if (icon.isEmpty()) {
+			Paint.hudText(ctx, tr, a.item, PAD, y, Colors.text());
+			Paint.hudText(ctx, tr, clock, width - PAD - tr.getWidth(clock), y, clockColor);
+			y += ROW;
+		} else {
+			ctx.drawItem(icon, PAD - 1, y - 4);
+			Paint.hudText(ctx, tr, a.item, PAD + 19, y + 1, Colors.text());
+			Paint.hudText(ctx, tr, clock, width - PAD - tr.getWidth(clock), y + 1, clockColor);
+			y += ICON_ROW;
+		}
 		List<Standing> ranks = a.rankings();
-		Paint.hudText(ctx, tr, "Total " + Fmt.money(a.total()) + " · " + ranks.size() + (ranks.size() == 1 ? " player" : " players"),
-			PAD, y, Colors.muted());
+		boolean amounts = showAmounts(a);
+		String count = ranks.size() + (ranks.size() == 1 ? " bidder" : " bidders");
+		Paint.hudText(ctx, tr, amounts ? "Total " + Fmt.money(a.total()) + " · " + count : count, PAD, y, Colors.muted());
 		y += ROW;
 		if (ranks.isEmpty()) {
 			Paint.hudText(ctx, tr, "Waiting for /pay…", PAD, y, Colors.muted());
 			y += ROW;
 		}
-		int amountX = auctionAmountX(tr, ranks);
-		for (int i = 0; i < Math.min(AUCTION_RANKS, ranks.size()); i++) {
+		int amountX = auctionAmountX(tr, a);
+		int top = a.showTop;
+		for (int i = 0; i < Math.min(top, ranks.size()); i++) {
 			Standing st = ranks.get(i);
 			int barW = Math.round((width - 2 * PAD) * (float) st.share());
 			Paint.round(ctx, PAD - 2, y - 2, barW + 2, ROW - 1, 2, Colors.alpha(Colors.accent(), 0x22));
 			Paint.hudText(ctx, tr, (i + 1) + "  " + st.player(), PAD, y, i == 0 ? Colors.GOLD : Colors.text());
-			Paint.hudText(ctx, tr, Fmt.money(st.total()), amountX, y, Colors.text());
-			String pct = Math.round(st.share() * 100) + "%";
-			Paint.hudText(ctx, tr, pct, width - PAD - tr.getWidth(pct), y, Colors.muted());
+			if (amounts) {
+				Paint.hudText(ctx, tr, Fmt.money(st.total()), amountX, y, Colors.text());
+			}
+			if (a.showShare) {
+				String pct = Math.round(st.share() * 100) + "%";
+				Paint.hudText(ctx, tr, pct, width - PAD - tr.getWidth(pct), y, Colors.muted());
+			}
 			y += ROW;
 		}
-		if (ranks.size() > AUCTION_RANKS) {
-			Paint.hudText(ctx, tr, "+" + (ranks.size() - AUCTION_RANKS) + " more", PAD, y, Colors.muted());
+		if (ranks.size() > top) {
+			Paint.hudText(ctx, tr, "+" + (ranks.size() - top) + " more", PAD, y, Colors.muted());
 			y += ROW;
 		}
 		int x = link(PAD, y, paused ? "Resume" : "Pause", Colors.GOLD, state::togglePauseAuction);
@@ -363,9 +409,10 @@ final class QueueHud extends HudElement {
 		link(x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.AUCTION));
 	}
 
-	private int auctionAmountX(TextRenderer tr, List<Standing> ranks) {
+	private int auctionAmountX(TextRenderer tr, Auction a) {
+		List<Standing> ranks = a.rankings();
 		int nameW = tr.getWidth("No auction running");
-		for (int i = 0; i < Math.min(AUCTION_RANKS, ranks.size()); i++) {
+		for (int i = 0; i < Math.min(a.showTop, ranks.size()); i++) {
 			nameW = Math.max(nameW, tr.getWidth((i + 1) + "  " + ranks.get(i).player()) + 10);
 		}
 		return PAD + Math.min(nameW, 120);
@@ -389,6 +436,10 @@ final class QueueHud extends HudElement {
 	}
 
 	private String oweHeader() {
+		if (hideMoney()) {
+			int n = oweRows().size();
+			return n == 0 ? "Nobody to pay" : n + " to pay";
+		}
 		long money = 0;
 		int elytras = 0;
 		for (Bet b : state.ledger.owed()) {

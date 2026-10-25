@@ -11,7 +11,20 @@ public final class Paint {
 	public static final int RADIUS = 3;
 	public static final int LINE_H = 11;
 
+	/**
+	 * When non-null, every string drawn through Paint is also added here. Used by the game test
+	 * to prove Streamer Mode never draws private figures.
+	 */
+	public static java.util.List<String> audit;
+
 	private Paint() {
+	}
+
+	/** Note a string that was drawn some other way (wrapped text). */
+	public static void record(String s) {
+		if (audit != null) {
+			audit.add(s);
+		}
 	}
 
 	/** Filled rectangle with rounded corners, drawn as non-overlapping rows so translucent colors stay even. */
@@ -73,31 +86,37 @@ public final class Paint {
 	// ---- text ----
 
 	public static int text(DrawContext ctx, TextRenderer tr, String s, int x, int y, int color) {
+		record(s);
 		ctx.drawText(tr, s, x, y, color, false);
 		return x + tr.getWidth(s);
 	}
 
 	/** Text with a shadow; for the HUD, where it sits over the world. */
 	public static int hudText(DrawContext ctx, TextRenderer tr, String s, int x, int y, int color) {
+		record(s);
 		ctx.drawTextWithShadow(tr, s, x, y, color);
 		return x + tr.getWidth(s);
 	}
 
 	public static void right(DrawContext ctx, TextRenderer tr, String s, int rightX, int y, int color) {
+		record(s);
 		ctx.drawText(tr, s, rightX - tr.getWidth(s), y, color, false);
 	}
 
 	public static void center(DrawContext ctx, TextRenderer tr, String s, int centerX, int y, int color) {
+		record(s);
 		ctx.drawText(tr, s, centerX - tr.getWidth(s) / 2, y, color, false);
 	}
 
 	/** Small uppercase label above a value or section. */
 	public static void label(DrawContext ctx, TextRenderer tr, String s, int x, int y) {
+		record(s);
 		ctx.drawText(tr, s.toUpperCase(java.util.Locale.ROOT), x, y, Colors.INK_FAINT, false);
 	}
 
 	/** Text drawn at an integer multiple of the font size (crisp pixels). */
 	public static void big(DrawContext ctx, TextRenderer tr, String s, int x, int y, int scale, int color, boolean shadow) {
+		record(s);
 		ctx.getMatrices().pushMatrix();
 		ctx.getMatrices().translate(x, y);
 		ctx.getMatrices().scale(scale, scale);

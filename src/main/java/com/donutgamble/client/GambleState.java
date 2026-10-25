@@ -18,6 +18,9 @@ import com.donutgamble.core.Standing;
 import com.donutgamble.core.Transaction;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ChatScreen;
+import net.minecraft.item.ItemStack;
+import com.donutgamble.core.AuctionSetup;
+import com.donutgamble.core.PrivacySettings;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,7 +29,15 @@ import java.util.Map;
 
 /** The mod's live state and every action the queue, manager and hotkeys can take. Saves after each change. */
 public final class GambleState {
-	public record Toast(String text, int color, long start, long until) {
+	/**
+	 * A pop-up. {@code text} is the full version; {@code publicText} is what may show while Streamer
+	 * Mode hides private toasts (null = show nothing then). {@code icon} is an auction prize, or empty.
+	 */
+	public record Toast(String text, String publicText, int color, long start, long until, ItemStack icon) {
+		/** The text to draw right now, or null if this toast must not be drawn. */
+		String visibleText(boolean hidePrivate) {
+			return hidePrivate ? publicText : text;
+		}
 	}
 
 	private static final long TOAST_MS = 4000;
@@ -42,6 +53,8 @@ public final class GambleState {
 	private final PaymentDetector detector;
 	private final PaymentDeduplicator dedupe = new PaymentDeduplicator();
 	private final List<Toast> toasts = new ArrayList<>();
+	/** Streamer Mode preview: apply its rules without turning it on. Not saved. */
+	boolean preview;
 
 	GambleState() {
 		config = storage.loadConfig();
@@ -67,6 +80,25 @@ public final class GambleState {
 	void flush() {
 		save();
 		storage.flush();
+	}
+
+	// ---- privacy ----
+
+	/** True if private figures on this surface must not be drawn right now (Streamer Mode or preview). */
+	public boolean hides(PrivacySettings.Surface surface) {
+		return config.privacy.hides(surface, preview);
+	}
+
+	/** Streamer Mode or its preview is in effect. */
+	public boolean streaming() {
+		return config.privacy.streamerMode || preview;
+	}
+
+	public void toggleStreamerMode() {
+		config.privacy.streamerMode = !config.privacy.streamerMode;
+		notify(config.privacy.streamerMode ? "Streamer Mode on: private figures hidden" : "Streamer Mode off",
+			config.privacy.streamerMode ? "Streamer Mode on" : null, Colors.text(), TOAST_MS, ItemStack.EMPTY);
+		save();
 	}
 
 	java.nio.file.Path dataDir() {
@@ -105,10 +137,18 @@ public final class GambleState {
 		if (config.routePaymentsToAuction && auctions.onPayment(player, amount, now, tx.id, config)) {
 			tx.source = Transaction.Source.AUCTION;
 			tx.auctionId = auctions.current.id;
-			Standing leader = auctions.current.leader();
-			int rank = rankOf(auctions.current, player);
-			notify("+" + Fmt.money(amount) + " " + player + " → auction #" + rank
-				+ (leader != null && leader.player().equalsIgnoreCase(player) ? " (leading)" : ""), Colors.GREEN);
+			Auction a = auctions.current;
+			Standing leader = a.leader();
+			int rank = rankOf(a, player);
+			boolean first = a.contributions.stream().filter(c -> c.player.equalsIgnoreCase(player)).count() == 1;
+			boolean leads = leader != null && leader.player().equalsIgnoreCase(player);
+			String where = leads ? " and leads!" : " · #" + rank;
+			String full = "+" + Fmt.money(amount) + " " + player + " → auction #" + rank + (leads ? " (leading)" : "");
+			// Bids are public unless the auction HUD is set to hide amounts.
+			String shown = config.privacy.hideAuctionHud
+				? player + (first ? " joined the auction" : " bid again") + where
+				: full;
+			notify(full, shown, Colors.GREEN, TOAST_MS, ItemIcons.of(a));
 		} else {
 			Game game = GameClassifier.guess(amount, config.lastGame, config);
 			Bet bet = ledger.addPayment(player, amount, game, now);
@@ -118,7 +158,8 @@ public final class GambleState {
 			if (open != null && open != game && ledger.pending(open).isEmpty()) {
 				config.activeTab = QueueHud.Tab.of(game).name();
 			}
-			notify("+" + Fmt.money(amount) + " " + player + " → " + game.displayName, Colors.GREEN);
+			String text = "+" + Fmt.money(amount) + " " + player + " → " + game.displayName;
+			notify(text, text, Colors.GREEN, TOAST_MS, ItemStack.EMPTY);
 		}
 		save();
 		return tx;
@@ -191,12 +232,17 @@ public final class GambleState {
 	// ---- auctions ----
 
 	public boolean startAuction(String item, int durationSec, long prizeCost) {
+		return startAuction(AuctionSetup.simple(item, durationSec, prizeCost));
+	}
+
+	public boolean startAuction(AuctionSetup setup) {
 		if (auctions.isLive()) {
 			return false;
 		}
-		Auction a = auctions.start(item, durationSec, prizeCost, System.currentTimeMillis());
+		Auction a = auctions.start(setup, System.currentTimeMillis());
 		config.activeTab = QueueHud.Tab.AUCTION.name();
-		notify("Auction started: " + a.item + " (" + Fmt.clock(a.durationMs) + ")", Colors.text());
+		String text = "Auction started: " + a.item + " (" + Fmt.clock(a.durationMs) + ")";
+		notify(text, text, Colors.text(), TOAST_MS, ItemIcons.of(a));
 		save();
 		return true;
 	}
@@ -204,7 +250,7 @@ public final class GambleState {
 	public void pauseAuction() {
 		if (auctions.isLive()) {
 			auctions.current.pause(System.currentTimeMillis());
-			notify("Auction paused", Colors.GOLD);
+			notify("Auction paused", "Auction paused", Colors.GOLD, TOAST_MS, ItemStack.EMPTY);
 			save();
 		}
 	}
@@ -212,7 +258,7 @@ public final class GambleState {
 	public void resumeAuction() {
 		if (auctions.isLive()) {
 			auctions.current.resume(System.currentTimeMillis());
-			notify("Auction resumed", Colors.text());
+			notify("Auction resumed", "Auction resumed", Colors.text(), TOAST_MS, ItemStack.EMPTY);
 			save();
 		}
 	}
@@ -239,7 +285,8 @@ public final class GambleState {
 	public void cancelAuction() {
 		Auction a = auctions.cancel(System.currentTimeMillis());
 		if (a != null) {
-			notify("Auction cancelled: " + a.rankings().size() + " refunds owed", Colors.GOLD);
+			String text = "Auction cancelled: " + a.rankings().size() + " refunds owed";
+			notify(text, "Auction cancelled", Colors.GOLD, TOAST_MS, ItemIcons.of(a));
 			save();
 		}
 	}
@@ -267,9 +314,11 @@ public final class GambleState {
 			finance.record(Transaction.Type.EXPENSE, Transaction.Source.AUCTION, a.winner, a.prizeCost,
 				"Prize: " + a.item, a.endedAt, false);
 		}
-		notify(a.winner != null
+		String full = a.winner != null
 			? a.item + " won by " + a.winner + " · total " + Fmt.money(a.total())
-			: a.item + " ended with no bids", Colors.GOLD);
+			: a.item + " ended with no bids";
+		String shown = a.winner != null && config.privacy.hideAuctionHud ? a.item + " won by " + a.winner : full;
+		notify(full, shown, Colors.GOLD, 6000, ItemIcons.of(a));
 		save();
 	}
 
@@ -334,16 +383,20 @@ public final class GambleState {
 
 	// ---- notifications ----
 
+	/** A private pop-up: hidden while Streamer Mode hides toasts. */
 	void notify(String text, int color) {
-		notify(text, color, TOAST_MS);
+		notify(text, null, color, TOAST_MS, ItemStack.EMPTY);
 	}
 
-	void notify(String text, int color, long durationMs) {
+	/**
+	 * @param publicText what may show while Streamer Mode hides private toasts; null shows nothing
+	 */
+	void notify(String text, String publicText, int color, long durationMs, ItemStack icon) {
 		if (!config.notifications) {
 			return;
 		}
 		long now = System.currentTimeMillis();
-		toasts.add(new Toast(text, color, now, now + durationMs));
+		toasts.add(new Toast(text, publicText, color, now, now + durationMs, icon == null ? ItemStack.EMPTY : icon));
 		while (toasts.size() > MAX_TOASTS) {
 			toasts.remove(0);
 		}
@@ -406,7 +459,7 @@ public final class GambleState {
 	/** L: they lost. Paper/Blackjack open the score picker; Ely is just a miss. */
 	public void callLoss(Bet bet) {
 		resolve(bet, Outcome.PLAYER_LOSE, null, null);
-		notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), Colors.GREEN);
+		notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), bet.player + " lost", Colors.GREEN, TOAST_MS, ItemStack.EMPTY);
 		if (bet.game.usesScore()) {
 			MinecraftClient.getInstance().setScreen(ScoreScreen.score(this, bet));
 		}
@@ -415,7 +468,7 @@ public final class GambleState {
 	/** T: a tie goes to you. No numbers needed. */
 	public void callTie(Bet bet) {
 		resolveTie(bet);
-		notify(bet.player + " tied · you keep " + Fmt.money(bet.amount), Colors.GREEN);
+		notify(bet.player + " tied · you keep " + Fmt.money(bet.amount), bet.player + " tied", Colors.GREEN, TOAST_MS, ItemStack.EMPTY);
 	}
 
 	/** Ely hit, once the price is confirmed. */
@@ -426,7 +479,8 @@ public final class GambleState {
 	}
 
 	void awaitingPayment(Bet bet) {
-		notify("Awaiting manual payment of " + Fmt.owedLabel(bet) + " to " + bet.player, Colors.GOLD, PAYMENT_TOAST_MS);
+		String text = "Awaiting manual payment of " + Fmt.owedLabel(bet) + " to " + bet.player;
+		notify(text, text, Colors.GOLD, PAYMENT_TOAST_MS, ItemStack.EMPTY);
 	}
 
 	/** Hotkeys act on #1 in the open game tab (or the oldest bet overall on other tabs), without the score picker. */
@@ -446,7 +500,7 @@ public final class GambleState {
 		if (outcome == Outcome.PLAYER_WIN) {
 			awaitingPayment(bet);
 		} else {
-			notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), Colors.GREEN);
+			notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), bet.player + " lost", Colors.GREEN, TOAST_MS, ItemStack.EMPTY);
 		}
 	}
 

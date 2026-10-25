@@ -28,7 +28,7 @@ final class HudManager {
 	HudManager(GambleState state) {
 		this.state = state;
 		this.queue = new QueueHud(state);
-		this.elements = List.of(queue, new AuctionHud(state), new ProfitHud(state), new ToastHud(state));
+		this.elements = List.of(queue, new AuctionHud(state), new LeaderboardHud(state), new ProfitHud(state), new ToastHud(state));
 		// Carry the old single-HUD settings over to the queue the first time.
 		if (!state.config.hud.slots.containsKey(queue.id)) {
 			HudLayout.Slot s = state.config.hud.slot(queue.id, state.config.hudX, state.config.hudY, state.config.hudVisible);
@@ -103,6 +103,13 @@ final class HudManager {
 			}
 		}
 		regions.transform(0, 0, 1);
+		if (state.preview && !editing) {
+			String banner = "STREAM PREVIEW · what viewers see";
+			int bw = tr.getWidth(banner) + 14;
+			int by = sh - 62;
+			Paint.pill(ctx, (sw - bw) / 2, by, bw, 14, Colors.alpha(Colors.RED, 0xD0));
+			Paint.hudText(ctx, tr, banner, (sw - bw) / 2 + 7, by + 3, 0xFFFFFFFF);
+		}
 	}
 
 	private void drawEditorFrame(DrawContext ctx, TextRenderer tr, HudElement e, HudLayout.Slot s) {

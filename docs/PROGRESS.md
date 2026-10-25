@@ -82,3 +82,34 @@ Already sound (kept as is): payment detection is anchored (no chat spoofing), am
 - Manager minimum layout 480×270 (1080p at GUI scale 4).
 - Profit HUD off by default (the queue's game tabs already show profit).
 - `ScaledScreen` only lowers the scale in whole steps, so pixels stay crisp.
+
+## Streamer Mode and custom auctions (follow-up)
+
+### Audit: where private figures were drawn
+- Queue HUD: per-game profit line, Stats tab (all of it), Owe header total.
+- Session profit HUD.
+- Toasts: "you keep $X", exports, backups, new session.
+- Manager: dashboard tiles and latest payment amounts; Players money cells and recent amounts;
+  Finance and Payments pages; History "Prize cost · profit"; auction totals (public by design).
+
+### Implementation
+- `core.PrivacySettings`: master switch, six surfaces, `hides(surface, preview)`; unit tested.
+- `GambleState.hides/streaming`, transient `preview`; toasts carry a public wording or none
+  (`Toast.visibleText`), decided at draw time so turning Streamer Mode on hides toasts already up.
+- Every surface checks its flag *before* drawing; private strings are never built into draw calls.
+- `ui.Paint.audit`: records every string drawn; the game test fails if a private figure appears
+  on any HUD tab or manager page in Streamer Mode, with a control run proving it's captured otherwise.
+- Custom auctions: `core.AuctionSetup` (+ item id, quantity, title, description, exact stack JSON,
+  per-auction auto-end/anti-snipe, top N/amounts/share); `ItemPickerScreen` (search, creative
+  categories once in a world, recent, favorites, inventory with components); `AuctionSetupScreen`;
+  `ItemIcons` (stack JSON via `ItemStack.CODEC`, cached decoding); `LeaderboardHud`; icons on HUD,
+  manager, history and toasts.
+
+### Found while testing
+- Creative categories need item tags, which only exist in a world; building them on the title
+  screen failed and the empty result was cached for the session. Now they're built on the first
+  open inside a world.
+
+### Not verified
+- Inventory picking and categories in a real world (the test machine can't load one); the item
+  component round-trip (custom name + enchantment) is tested.
