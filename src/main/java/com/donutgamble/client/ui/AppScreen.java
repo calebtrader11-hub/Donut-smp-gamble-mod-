@@ -37,7 +37,7 @@ public abstract class AppScreen extends ScaledScreen {
 		popup = popup == d ? null : d;
 	}
 
-	Dropdown popup() {
+	protected Dropdown popup() {
 		return popup;
 	}
 

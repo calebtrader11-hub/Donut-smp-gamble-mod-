@@ -25,7 +25,7 @@ public final class DonutGambleClient implements ClientModInitializer {
 	static KeyBinding OPEN_MANAGER;
 	private static KeyBinding OPEN_HUD_EDITOR;
 	private static KeyBinding TOGGLE_HUD;
-	private static KeyBinding TOGGLE_STREAMER;
+	static KeyBinding TOGGLE_STREAMER;
 	private static KeyBinding FIRST_WIN;
 	private static KeyBinding FIRST_LOSE;
 	static GambleState state;

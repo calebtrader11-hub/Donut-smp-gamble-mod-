@@ -110,7 +110,7 @@ public final class Button extends ClickableWidget {
 		String label = getMessage().getString();
 		int ty = getY() + (getHeight() - 8) / 2 + 1 + (press > 0.5f ? 1 : 0);
 		if (icon != null) {
-			int total = 11 + tr.getWidth(label);
+			int total = label.isEmpty() ? 8 : 11 + tr.getWidth(label);
 			int ix = getX() + (getWidth() - total) / 2;
 			icon.draw(ctx, ix, ty, ink);
 			Paint.text(ctx, tr, label, ix + 11, ty, ink);

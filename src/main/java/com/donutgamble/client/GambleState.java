@@ -103,15 +103,25 @@ public final class GambleState {
 		save();
 	}
 
-	/** Privacy presets: BALANCED hides money but keeps the auction public; STRICT also hides bids. */
+	/** Privacy presets: BALANCED hides money but keeps the auction public; STRICT also hides bids. Doesn't switch the mode on. */
 	public void applyPrivacyPreset(String preset) {
 		PrivacySettings p = config.privacy;
 		boolean strict = preset.equals("STRICT");
 		for (PrivacySettings.Surface s : PrivacySettings.Surface.values()) {
 			p.set(s, s != PrivacySettings.Surface.AUCTION_HUD || strict);
 		}
-		p.streamerMode = true;
 		save();
+	}
+
+	/** "BALANCED", "STRICT" or "CUSTOM", from the current switches. */
+	public String privacyPreset() {
+		PrivacySettings p = config.privacy;
+		for (PrivacySettings.Surface s : PrivacySettings.Surface.values()) {
+			if (s != PrivacySettings.Surface.AUCTION_HUD && !p.get(s)) {
+				return "CUSTOM";
+			}
+		}
+		return p.get(PrivacySettings.Surface.AUCTION_HUD) ? "STRICT" : "BALANCED";
 	}
 
 	// ---- settings import / export ----
@@ -127,14 +137,7 @@ public final class GambleState {
 			notify(Kind.SYSTEM, "No settings to import: put a file at config/donutgamble/import/settings.json", null, Colors.ORANGE, ItemStack.EMPTY);
 			return false;
 		}
-		try {
-			for (java.lang.reflect.Field f : GambleConfig.class.getFields()) {
-				if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) && !java.lang.reflect.Modifier.isFinal(f.getModifiers())) {
-					f.set(config, f.get(in));
-				}
-			}
-		} catch (IllegalAccessException e) {
-			DonutGambleClient.LOGGER.error("Settings import failed", e);
+		if (!copySettings(in)) {
 			notify(Kind.SYSTEM, "Settings import failed: see the log", null, Colors.RED, ItemStack.EMPTY);
 			return false;
 		}
@@ -142,6 +145,28 @@ public final class GambleState {
 		notify(Kind.SYSTEM, "Settings imported", null, Colors.GREEN, ItemStack.EMPTY);
 		save();
 		return true;
+	}
+
+	/** Puts every setting back to its default. Payments, bets, auctions and players aren't touched. */
+	public void resetSettings() {
+		copySettings(new GambleConfig());
+		Colors.theme = Colors.Theme.parse(config.theme);
+		notify(Kind.SYSTEM, "Settings reset to defaults", null, Colors.accent(), ItemStack.EMPTY);
+		save();
+	}
+
+	private boolean copySettings(GambleConfig in) {
+		try {
+			for (java.lang.reflect.Field f : GambleConfig.class.getFields()) {
+				if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) && !java.lang.reflect.Modifier.isFinal(f.getModifiers())) {
+					f.set(config, f.get(in));
+				}
+			}
+			return true;
+		} catch (IllegalAccessException e) {
+			DonutGambleClient.LOGGER.error("Copying settings failed", e);
+			return false;
+		}
 	}
 
 	java.nio.file.Path dataDir() {

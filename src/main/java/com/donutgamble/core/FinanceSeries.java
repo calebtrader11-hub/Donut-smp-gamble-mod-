@@ -89,4 +89,29 @@ public final class FinanceSeries {
 		}
 		return out;
 	}
+
+	/** Fixed-width buckets of {@code stepMs} from {@code from} up to {@code to} (e.g. hours of today). */
+	public static List<Bucket> fixed(FinanceBook book, long from, long to, long stepMs) {
+		List<Bucket> out = new ArrayList<>();
+		if (stepMs <= 0 || to <= from) {
+			return out;
+		}
+		int n = (int) Math.min(500, (to - from + stepMs - 1) / stepMs);
+		long[][] acc = new long[n][3];
+		for (Transaction t : book.transactions) {
+			if (t.voided || t.timestamp < from || t.timestamp >= from + n * stepMs) {
+				continue;
+			}
+			long[] a = acc[(int) ((t.timestamp - from) / stepMs)];
+			switch (t.type) {
+				case INCOMING -> a[0] += t.amount;
+				case PAYOUT -> a[1] += t.amount;
+				case EXPENSE -> a[2] += t.amount;
+			}
+		}
+		for (int i = 0; i < n; i++) {
+			out.add(new Bucket(from + i * stepMs, from + (i + 1) * stepMs, acc[i][0], acc[i][1], acc[i][2]));
+		}
+		return out;
+	}
 }

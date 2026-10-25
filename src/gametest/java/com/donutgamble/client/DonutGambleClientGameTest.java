@@ -257,6 +257,74 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			context.takeScreenshot("donutgamble-manager-" + section.name().toLowerCase(Locale.ROOT));
 		}
+		runManagerPages(context);
+	}
+
+	/** The overhaul's pages and states: profile notes/tags, customize mode, settings categories, ranges, notifications. */
+	private void runManagerPages(ClientGameTestContext context) {
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			check(state.players.addTag("jimbo01", "Regular"), "tag added");
+			check(!state.players.addTag("JIMBO01", "regular"), "duplicate tag ignored");
+			state.players.addTag("jimbo01", "VIP");
+			state.players.setNotes("jimbo01", "Always bids late");
+			state.players.setUuid("jimbo01", "4b2d8c1e-0000-4000-8000-000000000001");
+			ManagerScreen.DRAFTS.put("players.search", "jimbo");
+		});
+		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.PLAYERS));
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-player-profile");
+		context.runOnClient(client -> {
+			ManagerScreen.DRAFTS.remove("players.search");
+			DashboardPage.customizing = true;
+		});
+		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.DASHBOARD));
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-dashboard-customize");
+		context.runOnClient(client -> DashboardPage.customizing = false);
+
+		for (SettingsPage.Category category : new SettingsPage.Category[]{
+			SettingsPage.Category.AUCTIONS, SettingsPage.Category.NOTIFICATIONS, SettingsPage.Category.DATA}) {
+			context.runOnClient(client -> {
+				SettingsPage.category = category;
+				ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.SETTINGS);
+			});
+			context.waitTicks(3);
+			context.takeScreenshot("donutgamble-settings-" + category.name().toLowerCase(Locale.ROOT));
+		}
+		context.runOnClient(client -> {
+			SettingsPage.category = SettingsPage.Category.APPEARANCE;
+			LeaderboardPage.scope = 1;
+			ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.LEADERBOARD);
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-leaderboard-alltime");
+		context.runOnClient(client -> {
+			LeaderboardPage.scope = 0;
+			FinancePage.range = com.donutgamble.core.FinanceSeries.Range.TODAY;
+			ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.FINANCE);
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-finance-today");
+		context.runOnClient(client -> FinancePage.range = com.donutgamble.core.FinanceSeries.Range.WEEK);
+
+		// Full-size layout (no forced scale) for comparison with the 480x270 shots.
+		context.runOnClient(client -> {
+			com.donutgamble.client.ui.ScaledScreen.forcedFactor = 0;
+			ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.DASHBOARD);
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-dashboard-large");
+		context.runOnClient(client -> com.donutgamble.client.ui.ScaledScreen.forcedFactor = client.getWindow().getScaledWidth() / 480f);
+
+		context.runOnClient(client -> {
+			DonutGambleClient.state.previewNotifications();
+			check(DonutGambleClient.state.activeToasts().size() >= 4, "notification preview shows each style");
+		});
+		context.setScreen(() -> new OverlayPreviewScreen());
+		context.waitTicks(8);
+		context.takeScreenshot("donutgamble-notifications");
+		context.setScreen(() -> null);
 	}
 
 	/** Item picker, auction setup with a real item, and Streamer Mode (render audit + screenshots). */
@@ -321,6 +389,26 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-hud-auction-item");
+
+		// End now asks first; Escape keeps the auction running.
+		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.AUCTION));
+		context.waitTicks(2);
+		context.runOnClient(client -> {
+			com.donutgamble.client.ui.Button end = client.currentScreen.children().stream()
+				.filter(c -> c instanceof com.donutgamble.client.ui.Button b && b.getMessage().getString().equals("End now"))
+				.map(c -> (com.donutgamble.client.ui.Button) c).findFirst().orElseThrow();
+			end.onClick(new net.minecraft.client.gui.Click(end.getX() + 2, end.getY() + 2, new net.minecraft.client.input.MouseInput(0, 0)), false);
+			check(DonutGambleClient.state.auctions.isLive(), "End now only asks");
+		});
+		context.waitTicks(4);
+		context.takeScreenshot("donutgamble-confirm-end");
+		context.runOnClient(client -> {
+			client.currentScreen.keyPressed(new KeyInput(GLFW.GLFW_KEY_ESCAPE, 0, 0));
+			check(DonutGambleClient.state.auctions.isLive(), "Escape cancels the dialog, auction keeps running");
+			check(client.currentScreen instanceof ManagerScreen, "Escape closes only the dialog");
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-manager-auction-item");
 
 		// Streamer Mode: record every string drawn on every surface and check nothing private is among them.
 		String[] secrets = new String[4];

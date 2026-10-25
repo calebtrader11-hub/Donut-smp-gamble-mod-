@@ -32,6 +32,21 @@ class CoreV3Test {
 	}
 
 	@Test
+	void fixedSeriesBucketsByStep() {
+		FinanceBook b = new FinanceBook();
+		long h = 3_600_000L;
+		b.record(Transaction.Type.INCOMING, Transaction.Source.GAMBLE, "A", 10 * M, "", 5, false);
+		b.record(Transaction.Type.EXPENSE, Transaction.Source.OTHER, "-", 4 * M, "", 2 * h + 1, false);
+		b.record(Transaction.Type.INCOMING, Transaction.Source.GAMBLE, "Late", 1 * M, "", 3 * h, false);
+		var s = FinanceSeries.fixed(b, 0, 3 * h, h);
+		assertEquals(3, s.size());
+		assertEquals(10 * M, s.get(0).net());
+		assertEquals(0, s.get(1).net());
+		assertEquals(-4 * M, s.get(2).net());
+		assertTrue(FinanceSeries.fixed(b, 5, 5, h).isEmpty());
+	}
+
+	@Test
 	void dailySeriesZeroFillsAndMerges() {
 		FinanceBook b = new FinanceBook();
 		long day0 = LocalDate.of(2026, 10, 1).atStartOfDay(UTC).toInstant().toEpochMilli();
