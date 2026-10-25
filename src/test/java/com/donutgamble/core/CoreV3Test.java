@@ -32,6 +32,39 @@ class CoreV3Test {
 	}
 
 	@Test
+	void rankingsCacheFollowsChanges() {
+		Auction a = new Auction();
+		a.addContribution("A", 10 * M, 1, 1, false);
+		a.addContribution("B", 20 * M, 2, 2, false);
+		List<Standing> first = a.rankings();
+		assertSame(first, a.rankings(), "cached between changes");
+		assertEquals("B", first.get(0).player());
+		a.correct("a", 15 * M, 3);
+		assertEquals("A", a.rankings().get(0).player(), "correction re-ranks");
+		assertTrue(a.removeTransaction(1));
+		assertEquals("B", a.rankings().get(0).player(), "removal re-ranks");
+		assertThrows(UnsupportedOperationException.class, () -> a.rankings().clear());
+	}
+
+	@Test
+	void recentResultsNewestCalledFirst() {
+		Ledger l = new Ledger();
+		GambleConfig cfg = new GambleConfig();
+		Bet x = l.addPayment("X", 10 * M, Game.PAPER, 100);
+		Bet y = l.addPayment("Y", 10 * M, Game.PAPER, 200);
+		l.addPayment("Z", 10 * M, Game.PAPER, 300);
+		l.resolve(y.id, Outcome.PLAYER_LOSE, null, null, cfg);
+		y.resolvedAt = 1_000;
+		l.resolve(x.id, Outcome.PLAYER_WIN, null, null, cfg);
+		x.resolvedAt = 2_000;
+		List<Bet> r = l.recentResults(0, 5);
+		assertEquals(2, r.size(), "pending bets are left out");
+		assertEquals("X", r.get(0).player, "called last shows first");
+		assertEquals(1, l.recentResults(0, 1).size());
+		assertTrue(l.recentResults(5_000, 5).isEmpty());
+	}
+
+	@Test
 	void fixedSeriesBucketsByStep() {
 		FinanceBook b = new FinanceBook();
 		long h = 3_600_000L;

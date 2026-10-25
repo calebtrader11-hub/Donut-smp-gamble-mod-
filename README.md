@@ -78,17 +78,22 @@ Click the numbers the round ended on, then **Save** (or press Enter). The number
 
 ### HUD and HUD editor
 
-![HUD editor](docs/screenshots/hud-editor.png)
+![HUD editor](docs/screenshots/hud-editor-inspector.png)
 
-The HUD is five pieces you can arrange: the **Queue**, the **Auction** card (prize icon, title,
-description, countdown, leader; shown only while an auction is live), the **Leaderboard** (top
-bidders), **Session profit** (off by default) and **Notifications**. Press `End` (or
-**Edit HUD layout** in Settings) to open the editor:
+The HUD is made of components you can arrange: the tabbed **Queue**, a **Paper / Blackjack / Ely
+queue** each on its own (off by default), **Game activity** (recent results: W/L/T and scores, no
+profit), the **Auction** card (prize, title, countdown, leader; then a results card for a few
+seconds after it ends), the **Leaderboard** (top bidders; rows glide when someone overtakes),
+**Session** (time, games, W-L-T and net; off by default) and **Notifications**. Press `End` (or
+**Edit HUD layout** in Settings):
 
-- **Drag** a piece to move it. It snaps to the screen edges, the center and a 4px grid (Snap: On/Off).
-- **Scroll** over a piece to resize it (50% to 200%).
-- **Right-click** a piece to show or hide it.
-- **Reset layout** puts everything back.
+- **Drag** to move (snaps to edges, center and a 4px grid). **Scroll** to resize. **Right-click** hides.
+- **Click** a component to open its inspector: visible, size (50–200%), background opacity, its own
+  accent color, compact mode, reset. Arrow keys nudge it (Shift = 4px).
+- **Show…** brings back hidden components. **Layouts…** applies a preset (Minimal, Standard,
+  Streamer, Competitive; arranged for your screen size) or loads a layout you saved by name.
+
+![Competitive preset](docs/screenshots/hud-preset-competitive.png)
 
 The layout is saved. You can also drag pieces while chat or `Insert` is open.
 
@@ -151,15 +156,15 @@ A live auction is paused if you close the game, so no time is lost. Resume it fr
 
 | Section | What's there |
 |---|---|
-| **Dashboard** | Session and lifetime net, received, paid out; the live auction; queue counts; latest payments. |
-| **Players** | Everyone who has paid, bet or bid. Search, then click one: paid you, you paid, net, W-L-T, wagered, bets net, auction bids and wins, recent payments. |
-| **Auction** | Recent prizes and **Set up auction**, or the big countdown with Pause / ±30s / +5m / End now / Cancel, top contributors, and **manual correction** (add or take away from a player's auction total). |
-| **Leaderboard** | Full ranking of the live or last auction: total, number of payments, share. Scroll for more. |
-| **Payments** | Every payment in and out, newest first. **Search** by player, amount (`200m`), type or source. Click a name for that player's history. **void / undo** takes an entry out of every total (and out of the queue or auction it went to). Add a missed payment or payout by hand. Export **CSV** / **JSON**. |
-| **Finance** | Session and lifetime: received (from gamble / auction / other), paid out, expenses, net profit, counts, game results; top payers; add an expense; **Export report**. |
-| **Auction History** | Every finished auction; click one for its summary (winner, total, prize cost, top 5, refunds still owed). Export CSV / JSON. |
-| **Streamer** | Streamer Mode on/off, **Preview**, and what to hide (six switches). |
-| **Settings** | Auction rules, color, pop-ups, **Edit HUD layout**, duplicate window, elytra price, **Back up** / **Open folder**. Typed values apply when you press Enter. |
+| **Dashboard** | Cards you can reorder or hide (**Customize**): live auction, this session, lifetime, quick actions, games, payouts to send (click to pre-fill `/pay`), recent payments, auction stats. Empty cards say so; no sample numbers. |
+| **Players** | Search and views (recent, most active, biggest payers, owed money, auction bidders). Profile: UUID when seen in the tab list, tags, notes, paid you / you paid / net / owed / W-L-T / wagered / bids / auctions, recent activity. |
+| **Auction** | Countdown with Pause / ±30s / +5m, **End now** and **Cancel** (both ask first), HUD card and leaderboard switches, bid alerts, ranking with rank animations, **Bid history**, manual correction. When idle: start a new one, recent prizes, the last result with its podium. |
+| **Leaderboard** | Podium and full ranking for the latest auction or all time. |
+| **History** | Every finished auction with its recap and refunds still owed. Export CSV / JSON. |
+| **Payments** | Search plus categories (received, sent, gambling, auctions, expenses, added by hand, voided). Each row shows what it's linked to (the bet or auction it was matched to; a payout with no exact match says **Not matched**) and a status: Pending, Confirmed, Manual or Voided. Void asks first and can be restored. Add a missed payment by hand. |
+| **Finance** | Today / 7 days / 30 days / all time: net, received, paid out, expenses, a net-per-day (or per-hour) chart with hover details, results per game, auction stats, expenses, exports. |
+| **Streamer** | On/off, **Preview**, Balanced / Strict / Custom presets, six switches, what always stays public. |
+| **Settings** | Appearance, HUD, Auctions, Games (bet ranges, payout, elytra price, new session), Payments, Notifications (each type on/off, duration, how many at once, sounds, preview), Streamer Mode, Data (backups, exports, settings export/import), Advanced (reset dashboard, recent items, all settings). Everything saves as you change it. |
 
 The manager is laid out for at least 480×270 GUI pixels. If your GUI scale leaves less room, it
 draws at the next smaller whole scale so text stays sharp instead of overlapping.

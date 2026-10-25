@@ -100,6 +100,7 @@ public class Auction {
 		c.txId = txId;
 		c.manual = manual;
 		contributions.add(c);
+		version++;
 	}
 
 	/** Manual fix: add or (negative) take away from a player's total. */
@@ -109,7 +110,11 @@ public class Auction {
 
 	/** A payment was voided in the finance book; drop it from the auction too. */
 	public boolean removeTransaction(long txId) {
-		return txId != 0 && contributions.removeIf(c -> c.txId == txId);
+		boolean removed = txId != 0 && contributions.removeIf(c -> c.txId == txId);
+		if (removed) {
+			version++;
+		}
+		return removed;
 	}
 
 	public long total() {
@@ -120,8 +125,26 @@ public class Auction {
 		return sum;
 	}
 
-	/** Biggest total first; on a tie, whoever paid first ranks higher. Players at 0 or below are left out. */
+	/** Bumped on every change to {@link #contributions}, so the ranking is only rebuilt when needed. */
+	private transient int version;
+	private transient int cachedVersion = -1;
+	private transient int cachedSize = -1;
+	private transient List<Standing> cachedRankings;
+
+	/**
+	 * Biggest total first; on a tie, whoever paid first ranks higher. Players at 0 or below are left
+	 * out. Cached until the contributions change (the HUD asks several times a frame). Read-only.
+	 */
 	public List<Standing> rankings() {
+		if (cachedRankings == null || cachedVersion != version || cachedSize != contributions.size()) {
+			cachedRankings = java.util.Collections.unmodifiableList(computeRankings());
+			cachedVersion = version;
+			cachedSize = contributions.size();
+		}
+		return cachedRankings;
+	}
+
+	private List<Standing> computeRankings() {
 		Map<String, long[]> totals = new LinkedHashMap<>();
 		Map<String, String> names = new LinkedHashMap<>();
 		for (Contribution c : contributions) {

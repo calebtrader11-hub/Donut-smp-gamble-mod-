@@ -146,3 +146,27 @@ Already sound (kept as is): payment detection is anchored (no chat spoofing), am
 6. Notifications v2: types, per-type switches, duration, sounds, preview.
 7. Per-frame caches for rankings/owed/stats.
 8. Tests, multi-scale screenshots, Streamer audit, docs.
+
+### Status (third pass)
+- [x] 1 Core: `PlayerDirectory`, `FinanceSeries` (daily and fixed/hourly), `AuctionStats`,
+      `NotificationSettings`, HUD slot style + saved layouts, `Ledger.recentResults`, cached
+      `Auction.rankings()`. 83 unit tests.
+- [x] 2 Design system v2: palette, gradients, 8×8 icons, `Slider`, `Dropdown` (opens upward near
+      the bottom), `Segmented`, `AppScreen` confirm dialogs and page fades, button press feedback.
+- [x] 3 Manager split into `ManagerScreen` (shell) + 9 `*Page` classes.
+- [x] 4 Auction setup v2 with preview; animated `RankingView`; results card; ending-soon and new-leader
+      notices; bid history; End/Cancel/void/import/reset ask first.
+- [x] 5 HUD: per-game queues, game activity, session; opacity/accent/compact per component;
+      editor v2 with inspector, presets, saved layouts, Show menu, nudging.
+- [x] 6 Notifications: 10 types with icons, per-type switches, duration, max on screen, quiet sounds, preview.
+- [x] 7 Caches: rankings (per change), player stats and finance chart series (on change / 2–5 s).
+- [x] 8 Game test: 46 screenshots at 480×270 plus one full-size; Streamer audit across every page.
+
+### Limits (honest)
+- Games start from `/pay`; "start Paper" opens that queue, it can't start a game on the server.
+- UUIDs only for players who were in the tab list while you had the mod running.
+- A payout is linked to a bet or refund only on an exact name and amount match; otherwise it's
+  shown as **Not matched** rather than guessed.
+- Sounds, inventory picking and creative categories weren't heard/seen in a real world here
+  (the test machine can't load one, and has no audio device).
+- Streamer Mode only controls what this mod draws.
