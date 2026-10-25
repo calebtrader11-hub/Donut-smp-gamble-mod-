@@ -50,7 +50,7 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
   session/lifetime stats, "New Session" reset.
 
 ## Hotkeys (rebindable)
-`F` open panel (unbinds vanilla "Swap Item With Offhand" from F; rebind it if needed) · `H` toggle HUD · `]` newest pending = WIN · `[` newest pending = LOSE.
+`F` open panel (vanilla "Swap Item With Offhand" is also F by default — move that in Controls to avoid both firing) · `H` toggle HUD · `]` newest pending = WIN · `[` newest pending = LOSE.
 
 ## Out of scope (YAGNI)
 Auto-sending payments, OBS browser overlay, multi-account, reading other
