@@ -25,7 +25,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			state.config.elytraPrice = 180 * M;
 			state.newSession();
 
-			pay(client, "Max paid you $400M.");
+			pay(client, "Max paid you $ 400M");
 			state.resolveTie(last(state));
 			pay(client, "Kira paid you $120M.");
 			state.setGame(last(state), Game.ELY);
@@ -34,7 +34,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			state.resolve(last(state), Outcome.PLAYER_WIN, 9, 8);
 
 			pay(client, "[VIP] Bob: Notch paid you $500M");
-			pay(client, "RazorBroGaming paid you $50M.");
+			pay(client, "RazorBroGaming paid you $ 50M");
 			pay(client, "You received $250M from hayden260");
 			pay(client, "xNova paid you $120M.");
 			state.setGame(last(state), Game.ELY);
@@ -42,6 +42,8 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			check(state.ledger.pending().size() == 3, "3 queued bets (spoofed chat ignored)");
 			check(state.ledger.pending().get(0).player.equals("RazorBroGaming"), "queue is oldest first");
 			check(state.ledger.owed().size() == 2, "2 owed payouts");
+			pay(client, "You paid Alex_ $ 1M");
+			check(state.ledger.owed().size() == 2, "paying the wrong amount doesn't clear a payout");
 			check(state.ledger.sessionStats().net() == 400 * M - 60 * M - 45 * M, "session net");
 		});
 

@@ -7,7 +7,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PaymentDetectorTest {
-	private final PaymentDetector detector = new PaymentDetector(GambleConfig.DEFAULT_PAY_PATTERNS);
+	private final PaymentDetector detector = new PaymentDetector(java.util.List.of());
 
 	@Test
 	void detectsPaidYou() {
@@ -15,6 +15,23 @@ class PaymentDetectorTest {
 		assertTrue(p.isPresent());
 		assertEquals("Steve", p.get().player());
 		assertEquals(50_000_000L, p.get().amount());
+	}
+
+	@Test
+	void detectsDonutSmpFormat() {
+		Optional<PaymentDetector.Payment> p = detector.detect("jimbo01 paid you $ 75M");
+		assertTrue(p.isPresent());
+		assertEquals("jimbo01", p.get().player());
+		assertEquals(75_000_000L, p.get().amount());
+	}
+
+	@Test
+	void detectsOutgoingPayment() {
+		Optional<PaymentDetector.Payment> p = detector.detectOutgoing("You paid BeanznBread $ 1B");
+		assertTrue(p.isPresent());
+		assertEquals("BeanznBread", p.get().player());
+		assertEquals(1_000_000_000L, p.get().amount());
+		assertTrue(detector.detect("You paid BeanznBread $ 1B").isEmpty());
 	}
 
 	@Test
@@ -46,7 +63,7 @@ class PaymentDetectorTest {
 
 	@Test
 	void skipsInvalidPatterns() {
-		PaymentDetector d = new PaymentDetector(java.util.List.of("(((", GambleConfig.DEFAULT_PAY_PATTERNS.get(0)));
+		PaymentDetector d = new PaymentDetector(java.util.List.of("((("));
 		assertTrue(d.detect("Steve paid you $5M").isPresent());
 	}
 }

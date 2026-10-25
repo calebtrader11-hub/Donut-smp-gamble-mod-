@@ -13,11 +13,24 @@ public final class PaymentDetector {
 	}
 
 	private static final Pattern COLOR_CODES = Pattern.compile("§.");
+	private static final String NAME = "(?<player>[.A-Za-z0-9_]{2,17})";
+	/** Donut SMP shows "$ 75M": an optional currency symbol, optional space, then the amount. */
+	private static final String MONEY = "[^0-9\\s]?\\s*(?<amount>[0-9][0-9,.]*\\s*[KkMmBbTt]?)";
 
-	private final List<Pattern> patterns = new ArrayList<>();
+	/** Built in, anchored with ^ so player chat can't spoof them. */
+	private static final List<Pattern> INCOMING = List.of(
+		Pattern.compile("^" + NAME + " paid you " + MONEY),
+		Pattern.compile("^You received " + MONEY + " from " + NAME)
+	);
+	private static final List<Pattern> OUTGOING = List.of(
+		Pattern.compile("^You paid " + NAME + " " + MONEY)
+	);
 
-	public PaymentDetector(List<String> regexes) {
-		for (String regex : regexes) {
+	private final List<Pattern> patterns = new ArrayList<>(INCOMING);
+
+	/** @param extraRegexes user-added incoming patterns from config, tried after the built-in ones */
+	public PaymentDetector(List<String> extraRegexes) {
+		for (String regex : extraRegexes) {
 			try {
 				patterns.add(Pattern.compile(regex));
 			} catch (PatternSyntaxException e) {
@@ -26,9 +39,19 @@ public final class PaymentDetector {
 		}
 	}
 
+	/** Someone paid you. */
 	public Optional<Payment> detect(String message) {
+		return match(patterns, message);
+	}
+
+	/** You paid someone (used to clear the owed list automatically). */
+	public Optional<Payment> detectOutgoing(String message) {
+		return match(OUTGOING, message);
+	}
+
+	private static Optional<Payment> match(List<Pattern> list, String message) {
 		String clean = COLOR_CODES.matcher(message).replaceAll("").trim();
-		for (Pattern p : patterns) {
+		for (Pattern p : list) {
 			Matcher m = p.matcher(clean);
 			if (m.find()) {
 				try {

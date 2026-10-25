@@ -88,6 +88,17 @@ public class Ledger {
 		}
 	}
 
+	/** You paid someone: clear the oldest money payout owed to them for exactly that amount. */
+	public boolean settleByPayment(String player, long amount) {
+		for (Bet b : owed()) {
+			if (!b.payoutIsElytra() && b.player.equalsIgnoreCase(player) && b.payout == amount) {
+				b.settled = true;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public void remove(long id) {
 		bets.removeIf(b -> b.id == id && b.isPending());
 	}

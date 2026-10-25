@@ -34,7 +34,7 @@ To click the letters, open chat (`T`) or press `Insert` to free the mouse.
 | **W** on an Ely bet | They hit the item frame. Confirm the elytra price, and it's counted as your cost. |
 | **Paper / BJ / Ely** | Switch the game if the guess from the amount was wrong. |
 | **P** | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
-| **D** | Done: they've been paid, or their elytra is in their order. |
+| **D** | Done: they've been paid, or their elytra is in their order. Money rows also clear on their own when you `/pay` them the exact amount. |
 | Right-click a name | Remove a payment that wasn't a bet. |
 | Right-click **Profit** | Start a new session (profit back to 0 for a new stream). |
 
@@ -55,14 +55,17 @@ Everything is saved in `.minecraft/config/donutgamble/` after every change:
 
 - `ledger.json`: every bet, its result and whether it's been paid.
 - `config.json`: settings. You can change game ranges, `winMultiplier`, HUD position
-  (`hudX`, `hudY`, `hudScale`) and `payPatterns`.
+  (`hudX`, `hudY`, `hudScale`) and `extraPayPatterns`.
 
-### If payments aren't being detected
+### Payment messages
 
-The mod reads server messages that look like `Steve paid you $50M` or
-`You received $50M from Steve`. If Donut SMP words it differently, add a regex with
-`player` and `amount` groups to `payPatterns` in `config.json` and restart the game.
-Patterns start with `^` so a player can't fake a payment by typing it in chat.
+The mod reads Donut SMP's own server messages, like `jimbo01 paid you $ 75M`.
+When you send a payout and the server says `You paid Alex_ $ 90M`, the matching **Owe**
+row clears automatically. Messages typed by players in chat are ignored, so nobody can fake
+a payment.
+
+If payments ever stop showing up (for example, the server changes its wording), add a regex
+with `player` and `amount` groups to `extraPayPatterns` in `config.json` and restart the game.
 
 ## Development
 

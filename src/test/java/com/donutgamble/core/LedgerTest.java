@@ -52,6 +52,16 @@ class LedgerTest {
 	}
 
 	@Test
+	void outgoingPaymentSettlesMatchingWinner() {
+		Ledger l = ledger();
+		Bet b = l.addPayment("Alex_", 45 * M, Game.PAPER, 2000);
+		l.resolve(b.id, Outcome.PLAYER_WIN, null, null, cfg);
+		assertFalse(l.settleByPayment("alex_", 80 * M));
+		assertTrue(l.settleByPayment("alex_", 90 * M));
+		assertTrue(l.owed().isEmpty());
+	}
+
+	@Test
 	void pendingBetsDoNotCount() {
 		Ledger l = ledger();
 		l.addPayment("Bob", 20 * M, Game.PAPER, 2000);

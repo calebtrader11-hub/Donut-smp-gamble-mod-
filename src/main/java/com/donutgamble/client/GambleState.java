@@ -22,7 +22,7 @@ public final class GambleState {
 	GambleState() {
 		config = storage.loadConfig();
 		ledger = storage.loadLedger();
-		detector = new PaymentDetector(config.payPatterns);
+		detector = new PaymentDetector(config.extraPayPatterns);
 		save();
 	}
 
@@ -31,6 +31,11 @@ public final class GambleState {
 	}
 
 	void onServerMessage(String message) {
+		detector.detectOutgoing(message).ifPresent(p -> {
+			if (ledger.settleByPayment(p.player(), p.amount())) {
+				save();
+			}
+		});
 		detector.detect(message).ifPresent(p -> {
 			MinecraftClient client = MinecraftClient.getInstance();
 			if (client.player != null && client.player.getName().getString().equalsIgnoreCase(p.player())) {
