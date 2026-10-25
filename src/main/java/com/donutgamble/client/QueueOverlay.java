@@ -245,7 +245,7 @@ final class QueueOverlay {
 		int[] cols = oweColumns(tr, shown);
 		for (Bet b : shown) {
 			ctx.drawTextWithShadow(tr, b.player, PAD, y, Colors.text());
-			ctx.drawTextWithShadow(tr, owedLabel(b), cols[0], y, Colors.GOLD);
+			ctx.drawTextWithShadow(tr, oweText(b), cols[0], y, Colors.GOLD);
 			ctx.drawTextWithShadow(tr, Tab.of(b.game).label, cols[1], y, Colors.muted());
 			int lx = cols[2];
 			if (!b.payoutIsElytra()) {
@@ -279,9 +279,9 @@ final class QueueOverlay {
 		int amountW = 0;
 		for (Bet b : shown) {
 			nameW = Math.max(nameW, tr.getWidth(b.player));
-			amountW = Math.max(amountW, tr.getWidth(owedLabel(b)));
+			amountW = Math.max(amountW, tr.getWidth(oweText(b)));
 		}
-		int amountX = PAD + nameW + 8;
+		int amountX = PAD + nameW + 6;
 		int gameX = amountX + amountW + 8;
 		int lettersX = gameX + tr.getWidth("Paper") + 6;
 		return new int[]{amountX, gameX, lettersX};
@@ -376,18 +376,23 @@ final class QueueOverlay {
 		}
 	}
 
-	/** L and T are instant; only W opens a box. */
+	/** L is instant; W and T open the score box. */
 	private void lose(Bet b) {
 		state.resolve(b, Outcome.PLAYER_LOSE, null, null);
 	}
 
 	private void tie(Bet b) {
 		state.resolveTie(b);
+		MinecraftClient.getInstance().setScreen(ScoreScreen.score(state, b, "TIED"));
 	}
 
 	/** "$50m" like Donut SMP's own lists. */
 	static String money(long amount) {
 		return "$" + AmountParser.format(amount).toLowerCase(Locale.ROOT);
+	}
+
+	private static String oweText(Bet b) {
+		return "awaiting manual payment of " + owedLabel(b);
 	}
 
 	static String owedLabel(Bet b) {

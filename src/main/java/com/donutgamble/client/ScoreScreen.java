@@ -12,39 +12,55 @@ import org.lwjgl.glfw.GLFW;
 
 /** Small box that pops up after a letter is clicked: the round's numbers, or the elytra price. */
 final class ScoreScreen extends Screen {
-	private static final int W = 150;
-	private static final int H = 62;
+	private static final int MIN_W = 150;
+	private static final int H = 74;
 
 	private final GambleState state;
 	private final Bet bet;
 	private final String heading;
+	private final String subline;
+	private final int sublineColor;
 	private final boolean elytra;
+	private int W;
 	private TextFieldWidget them, me, price;
 
-	private ScoreScreen(GambleState state, Bet bet, String heading, boolean elytra) {
+	private ScoreScreen(GambleState state, Bet bet, String heading, String subline, int sublineColor, boolean elytra) {
 		super(Text.literal(heading));
 		this.state = state;
 		this.bet = bet;
 		this.heading = heading;
+		this.subline = subline;
+		this.sublineColor = sublineColor;
 		this.elytra = elytra;
 	}
 
 	/** Result already recorded; this just asks for the numbers (optional). */
 	static ScoreScreen score(GambleState state, Bet bet, String result) {
-		return new ScoreScreen(state, bet, bet.player + " " + result, false);
+		if (bet.tie) {
+			return new ScoreScreen(state, bet, bet.player + " " + result, "Tie goes to you: +" + QueueOverlay.money(bet.amount), Colors.GREEN, false);
+		}
+		if (bet.outcome == Outcome.PLAYER_WIN) {
+			return new ScoreScreen(state, bet, bet.player + " " + result, awaiting(QueueOverlay.owedLabel(bet)), Colors.GOLD, false);
+		}
+		return new ScoreScreen(state, bet, bet.player + " " + result, "You keep " + QueueOverlay.money(bet.amount), Colors.GREEN, false);
 	}
 
 	/** An Ely win: confirm what the elytra costs before it's counted. */
 	static ScoreScreen elytraPrice(GambleState state, Bet bet) {
-		return new ScoreScreen(state, bet, bet.player + " hit", true);
+		return new ScoreScreen(state, bet, bet.player + " hit", awaiting("1 Elytra"), Colors.GOLD, true);
+	}
+
+	static String awaiting(String what) {
+		return "Awaiting manual payment of " + what;
 	}
 
 	@Override
 	protected void init() {
+		W = Math.max(MIN_W, Math.max(textRenderer.getWidth(heading), textRenderer.getWidth(subline)) + 12);
 		int x = (width - W) / 2;
 		int y = (height - H) / 2;
 		if (elytra) {
-			price = new TextFieldWidget(textRenderer, x + 70, y + 20, 72, 14, Text.literal("Elytra price"));
+			price = new TextFieldWidget(textRenderer, x + 70, y + 32, 72, 14, Text.literal("Elytra price"));
 			price.setMaxLength(12);
 			price.setTextPredicate(s -> s.matches("[0-9.,kKmMbB$]*"));
 			if (state.config.elytraPrice > 0) {
@@ -53,8 +69,8 @@ final class ScoreScreen extends Screen {
 			addDrawableChild(price);
 			setInitialFocus(price);
 		} else {
-			them = scoreField(x + 34, y + 20, "Their score");
-			me = scoreField(x + 96, y + 20, "My score");
+			them = scoreField(x + 34, y + 32, "Their score");
+			me = scoreField(x + 96, y + 32, "My score");
 			setInitialFocus(them);
 		}
 		addDrawableChild(new FlatButton(x + W - 70, y + H - 18, 30, 12, "OK", Colors.GREEN, this::save));
@@ -98,11 +114,12 @@ final class ScoreScreen extends Screen {
 		int y = (height - H) / 2;
 		Draw.box(ctx, x, y, x + W, y + H, Colors.BOX_BG);
 		ctx.drawTextWithShadow(textRenderer, heading, x + 6, y + 6, Colors.text());
+		ctx.drawTextWithShadow(textRenderer, subline, x + 6, y + 18, sublineColor);
 		if (elytra) {
-			ctx.drawTextWithShadow(textRenderer, "Elytra price", x + 6, y + 23, Colors.muted());
+			ctx.drawTextWithShadow(textRenderer, "Elytra price", x + 6, y + 35, Colors.muted());
 		} else {
-			ctx.drawTextWithShadow(textRenderer, "Them", x + 6, y + 23, Colors.muted());
-			ctx.drawTextWithShadow(textRenderer, "Me", x + 78, y + 23, Colors.muted());
+			ctx.drawTextWithShadow(textRenderer, "Them", x + 6, y + 35, Colors.muted());
+			ctx.drawTextWithShadow(textRenderer, "Me", x + 78, y + 35, Colors.muted());
 		}
 	}
 

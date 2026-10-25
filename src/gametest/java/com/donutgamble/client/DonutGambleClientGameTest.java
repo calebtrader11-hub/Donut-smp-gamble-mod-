@@ -79,6 +79,15 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		});
 		context.waitTicks(5);
 		context.takeScreenshot("donutgamble-score");
+
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			Bet next = state.ledger.pending(Game.PAPER).get(0);
+			state.resolveTie(next);
+			client.setScreen(ScoreScreen.score(state, next, "TIED"));
+		});
+		context.waitTicks(5);
+		context.takeScreenshot("donutgamble-tie");
 		context.setScreen(() -> null);
 	}
 

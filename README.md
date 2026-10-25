@@ -20,7 +20,7 @@ The queue in the top-left has a tab for each game, plus **Owe** and **Stats**:
 | Tab | Shows |
 |---|---|
 | **Paper** / **BJ** / **Ely** | That game's queue and profit. **#1 is the bet you're playing now.** The number on the tab is how many are waiting. |
-| **Owe** | Everyone you still owe, the total, and which game they won. |
+| **Owe** | Everyone you still owe ("awaiting manual payment of $90m"), the total, and which game they won. |
 | **Stats** | Profit, W-L-T and total bet for each game, this session and lifetime. Also **Color** and **New session**. |
 
 ```
@@ -38,8 +38,9 @@ To click tabs and letters, open chat (`T`) or press `Insert` to free the mouse.
 | Click | What it does |
 |---|---|
 | A tab | Switch to it. |
-| **W** | They won. A small box opens for the score (Them / Me). Press Enter to save or Skip. |
-| **L** / **T** | They lost / tied. Recorded straight away, no box. Ties go to you. |
+| **W** | They won. A box opens saying "Awaiting manual payment of $100m" with the score (Them / Me). Press Enter to save or Skip. |
+| **T** | Tie (goes to you). The same score box opens. |
+| **L** | They lost. Recorded straight away, no box. |
 | **W** on an Ely bet | They hit the item frame. Confirm the elytra price, and it's counted as your cost. |
 | **→BJ** (etc.) | Move a bet to another game's tab if the guess was wrong. |
 | **P** (Owe tab) | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
