@@ -44,6 +44,13 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			check(state.ledger.owed().size() == 2, "2 owed payouts");
 			pay(client, "You paid Alex_ $ 1M");
 			check(state.ledger.owed().size() == 2, "paying the wrong amount doesn't clear a payout");
+
+			// A busy stream: lots of different players paying at once.
+			String[] names = {"jimbo01", "BeanznBread", ".BedrockKid", "Sk8r_Boi", "x_X_Gamer_X_x", "Tobias", "Lunaa", "zz9", "Pepperoni_Pete", "AAA"};
+			for (int i = 0; i < names.length; i++) {
+				pay(client, names[i] + " paid you $ " + (10 + i * 7) + "M");
+			}
+			check(state.ledger.pending().size() == 13, "every player's payment is queued");
 			check(state.ledger.sessionStats().net() == 400 * M - 60 * M - 45 * M, "session net");
 		});
 

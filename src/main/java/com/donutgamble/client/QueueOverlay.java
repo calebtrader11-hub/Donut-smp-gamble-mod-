@@ -98,7 +98,9 @@ final class QueueOverlay {
 		int lettersX = gameX + tr.getWidth("Paper") + 6;
 		int width = Math.max(lettersX + 3 * LETTER + PAD - 4, tr.getWidth("> waiting for /pay...") + 2 * PAD);
 
-		int rows = 1 + Math.max(1, shownQueue.size()) + shownOwed.size();
+		int moreQueue = queue.size() - shownQueue.size();
+		int moreOwed = owed.size() - shownOwed.size();
+		int rows = 1 + Math.max(1, shownQueue.size()) + shownOwed.size() + (moreQueue > 0 ? 1 : 0) + (moreOwed > 0 ? 1 : 0);
 		int height = PAD * 2 + rows * ROW - 2;
 		Draw.box(ctx, 0, 0, width, height, Colors.BG);
 
@@ -133,6 +135,11 @@ final class QueueOverlay {
 			y += ROW;
 		}
 
+		if (moreQueue > 0) {
+			ctx.drawTextWithShadow(tr, "  +" + moreQueue + " more waiting", PAD, y, Colors.MUTED);
+			y += ROW;
+		}
+
 		for (Bet b : shownOwed) {
 			ctx.drawTextWithShadow(tr, "Owe ", PAD, y, Colors.MUTED);
 			ctx.drawTextWithShadow(tr, b.player, PAD + tr.getWidth("Owe "), y, Colors.PINK);
@@ -143,6 +150,9 @@ final class QueueOverlay {
 			}
 			letter(ctx, tr, lx, y, "D", Colors.GREEN, () -> state.settle(b));
 			y += ROW;
+		}
+		if (moreOwed > 0) {
+			ctx.drawTextWithShadow(tr, "  +" + moreOwed + " more owed", PAD, y, Colors.MUTED);
 		}
 	}
 
