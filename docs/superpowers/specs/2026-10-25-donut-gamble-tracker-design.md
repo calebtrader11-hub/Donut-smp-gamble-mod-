@@ -52,7 +52,7 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
 - **Storage** — JSON in `.minecraft/config/donutgamble/` (config.json,
   ledger.json); saved on every change so crashes lose nothing.
 - **HUD overlay** — always-on compact profit card: session Net Profit (green/red,
-  large), Wagered, W/L count, last 5 results with scores (e.g. `Steve 18-20 L −0`… `Alex 9-8 W −50M`), owed count. Position/scale
+  large), Wagered, W/L count, last 5 results with scores (e.g. `Steve 18-20 L +100M`, `Alex 9-8 W −50M`), owed count. Position/scale
   configurable; toggle hotkey.
 - **Control screen** (hotkey, default `F`) — dark rounded panels, accent color:
   pending bet cards with WIN/LOSE + game chips, Owed list, elytra price input,
