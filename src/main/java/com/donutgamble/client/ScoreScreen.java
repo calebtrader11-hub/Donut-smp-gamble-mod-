@@ -97,12 +97,12 @@ final class ScoreScreen extends Screen {
 		int x = (width - W) / 2;
 		int y = (height - H) / 2;
 		Draw.box(ctx, x, y, x + W, y + H, Colors.BOX_BG);
-		ctx.drawTextWithShadow(textRenderer, heading, x + 6, y + 6, Colors.PINK);
+		ctx.drawTextWithShadow(textRenderer, heading, x + 6, y + 6, Colors.text());
 		if (elytra) {
-			ctx.drawTextWithShadow(textRenderer, "Elytra price", x + 6, y + 23, Colors.MUTED);
+			ctx.drawTextWithShadow(textRenderer, "Elytra price", x + 6, y + 23, Colors.muted());
 		} else {
-			ctx.drawTextWithShadow(textRenderer, "Them", x + 6, y + 23, Colors.MUTED);
-			ctx.drawTextWithShadow(textRenderer, "Me", x + 78, y + 23, Colors.MUTED);
+			ctx.drawTextWithShadow(textRenderer, "Them", x + 6, y + 23, Colors.muted());
+			ctx.drawTextWithShadow(textRenderer, "Me", x + 78, y + 23, Colors.muted());
 		}
 	}
 

@@ -4,7 +4,7 @@ A client-side Fabric mod for **Minecraft 1.21.11** that tracks gamble bets on Do
 while you stream. When someone `/pay`s you, the bet joins an on-screen queue. You click
 who won, and your profit updates live.
 
-![Queue](docs/screenshots/queue.png)
+![Queue](docs/screenshots/queue-aqua.png)
 
 ## Install
 
@@ -36,6 +36,7 @@ To click the letters, open chat (`T`) or press `Insert` to free the mouse.
 | **P** | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
 | **D** | Done: they've been paid, or their elytra is in their order. Money rows also clear on their own when you `/pay` them the exact amount. |
 | Right-click a name | Remove a payment that wasn't a bet. |
+| Click **Profit** | Change the color (Aqua, Purple, Gold, Red, Lime, Pink, White). |
 | Right-click **Profit** | Start a new session (profit back to 0 for a new stream). |
 
 | Key | What it does |
@@ -55,7 +56,7 @@ Everything is saved in `.minecraft/config/donutgamble/` after every change:
 
 - `ledger.json`: every bet, its result and whether it's been paid.
 - `config.json`: settings. You can change game ranges, `winMultiplier`, HUD position
-  (`hudX`, `hudY`, `hudScale`) and `extraPayPatterns`.
+  (`hudX`, `hudY`, `hudScale`), `theme` and `extraPayPatterns`.
 
 ### Payment messages
 

@@ -55,8 +55,16 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		});
 
 		context.setScreen(() -> new OverlayPreviewScreen());
+		for (Colors.Theme theme : Colors.Theme.values()) {
+			context.runOnClient(client -> DonutGambleClient.state.setTheme(theme));
+			context.waitTicks(3);
+			context.takeScreenshot("donutgamble-queue-" + theme.name().toLowerCase(java.util.Locale.ROOT));
+		}
+		context.runOnClient(client -> DonutGambleClient.state.setTheme(Colors.Theme.AQUA));
+
+		context.runOnClient(client -> client.setScreen(ScoreScreen.elytraPrice(DonutGambleClient.state, DonutGambleClient.state.ledger.pending().get(2))));
 		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-queue");
+		context.takeScreenshot("donutgamble-elytra");
 
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;

@@ -106,24 +106,24 @@ final class QueueOverlay {
 
 		long net = state.ledger.sessionStats().net();
 		int y = PAD;
-		ctx.drawTextWithShadow(tr, "Profit ", PAD, y, Colors.PINK);
+		ctx.drawTextWithShadow(tr, "Profit ", PAD, y, Colors.text());
 		ctx.drawTextWithShadow(tr, AmountParser.formatSigned(net), PAD + tr.getWidth("Profit "), y, Colors.profit(net));
-		hits.add(new Hit(PAD, y - 1, width - 2 * PAD, ROW, null, state::newSession));
+		hits.add(new Hit(PAD, y - 1, width - 2 * PAD, ROW, state::nextTheme, state::newSession));
 		y += ROW;
 
 		if (shownQueue.isEmpty()) {
-			ctx.drawTextWithShadow(tr, "> waiting for /pay...", PAD, y, Colors.MUTED);
+			ctx.drawTextWithShadow(tr, "> waiting for /pay...", PAD, y, Colors.muted());
 			y += ROW;
 		}
 		for (int i = 0; i < shownQueue.size(); i++) {
 			Bet b = shownQueue.get(i);
 			String name = "> " + (i + 1) + " " + b.player;
-			ctx.drawTextWithShadow(tr, name, PAD, y, Colors.PINK);
+			ctx.drawTextWithShadow(tr, name, PAD, y, Colors.text());
 			hits.add(new Hit(PAD, y - 1, tr.getWidth(name), ROW, null, () -> state.dismiss(b)));
-			ctx.drawTextWithShadow(tr, money(b.amount), amountX, y, Colors.PINK);
+			ctx.drawTextWithShadow(tr, money(b.amount), amountX, y, Colors.text());
 
 			String game = shortName(b.game);
-			ctx.drawTextWithShadow(tr, game, gameX, y, Colors.MUTED);
+			ctx.drawTextWithShadow(tr, game, gameX, y, Colors.muted());
 			hits.add(new Hit(gameX, y - 1, tr.getWidth("Paper"), ROW, () -> state.cycleGame(b), null));
 
 			int lx = lettersX;
@@ -136,13 +136,13 @@ final class QueueOverlay {
 		}
 
 		if (moreQueue > 0) {
-			ctx.drawTextWithShadow(tr, "  +" + moreQueue + " more waiting", PAD, y, Colors.MUTED);
+			ctx.drawTextWithShadow(tr, "  +" + moreQueue + " more waiting", PAD, y, Colors.muted());
 			y += ROW;
 		}
 
 		for (Bet b : shownOwed) {
-			ctx.drawTextWithShadow(tr, "Owe ", PAD, y, Colors.MUTED);
-			ctx.drawTextWithShadow(tr, b.player, PAD + tr.getWidth("Owe "), y, Colors.PINK);
+			ctx.drawTextWithShadow(tr, "Owe ", PAD, y, Colors.muted());
+			ctx.drawTextWithShadow(tr, b.player, PAD + tr.getWidth("Owe "), y, Colors.text());
 			ctx.drawTextWithShadow(tr, owedLabel(b), amountX, y, Colors.GOLD);
 			int lx = lettersX;
 			if (!b.payoutIsElytra()) {
@@ -152,7 +152,7 @@ final class QueueOverlay {
 			y += ROW;
 		}
 		if (moreOwed > 0) {
-			ctx.drawTextWithShadow(tr, "  +" + moreOwed + " more owed", PAD, y, Colors.MUTED);
+			ctx.drawTextWithShadow(tr, "  +" + moreOwed + " more owed", PAD, y, Colors.muted());
 		}
 	}
 

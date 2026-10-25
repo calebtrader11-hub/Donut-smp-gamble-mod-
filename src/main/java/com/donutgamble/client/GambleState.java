@@ -23,6 +23,7 @@ public final class GambleState {
 		config = storage.loadConfig();
 		ledger = storage.loadLedger();
 		detector = new PaymentDetector(config.extraPayPatterns);
+		Colors.theme = Colors.Theme.parse(config.theme);
 		save();
 	}
 
@@ -106,6 +107,16 @@ public final class GambleState {
 
 	public void setElytraPrice(long price) {
 		config.elytraPrice = price;
+		save();
+	}
+
+	public void nextTheme() {
+		setTheme(Colors.theme.next());
+	}
+
+	void setTheme(Colors.Theme theme) {
+		Colors.theme = theme;
+		config.theme = theme.name();
 		save();
 	}
 

@@ -25,6 +25,8 @@ public class GambleConfig {
 	public int hudX = 6;
 	public int hudY = 6;
 	public float hudScale = 1.0f;
+	/** Aqua, Purple, Gold, Red, Lime, Pink or White. Click "Profit" in game to cycle. */
+	public String theme = "AQUA";
 
 	public Game lastGame = Game.PAPER;
 }
