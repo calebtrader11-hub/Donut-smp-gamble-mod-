@@ -1,9 +1,12 @@
 package com.donutgamble.client;
 
 import com.donutgamble.core.AmountParser;
+import com.donutgamble.core.Auction;
 import com.donutgamble.core.Bet;
 import com.donutgamble.core.Game;
 import com.donutgamble.core.Outcome;
+import com.donutgamble.core.Refund;
+import com.donutgamble.core.Standing;
 import com.donutgamble.core.Stats;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -11,24 +14,27 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 /**
  * The on-screen queue, split into tabs:
  * <pre>
- * [Paper 3] BJ 1  Ely 1  Owe 2  Stats
+ * [Paper 3] BJ 1  Ely 1  Auction 4:12  Owe 2  Stats
  * Paper profit +420M
  * > 1 RazorBroGaming  $50m   W L T  →BJ
  * > 2 jimbo01         $75m   W L T  →BJ
  * </pre>
- * Tabs and letters are clickable while chat or the Insert screen is open.
+ * Tabs and letters are clickable while chat or the Insert screen is open, and the box can be dragged
+ * anywhere on screen by grabbing an empty spot.
  */
 final class QueueOverlay {
 	enum Tab {
 		PAPER(Game.PAPER, "Paper"),
 		BLACKJACK(Game.BLACKJACK, "BJ"),
 		ELY(Game.ELY, "Ely"),
+		AUCTION(null, "Auction"),
 		OWE(null, "Owe"),
 		STATS(null, "Stats");
 
@@ -58,6 +64,10 @@ final class QueueOverlay {
 		}
 	}
 
+	/** A row in the Owe tab: a gamble winner or an auction refund. */
+	private record OweRow(String player, String what, String from, long at, Runnable pay, Runnable done) {
+	}
+
 	private record Hit(int x, int y, int w, int h, Runnable left, Runnable right) {
 		boolean contains(double mx, double my) {
 			return mx >= x && mx < x + w && my >= y && my < y + h;
@@ -74,6 +84,9 @@ final class QueueOverlay {
 	private final List<Hit> hits = new ArrayList<>();
 	/** Where the box was last drawn, in GUI coordinates (used for hit-testing). */
 	private float originX, originY, scale = 1;
+	private int boxW, boxH;
+	/** While dragging: where inside the box the mouse grabbed it. -1 when not dragging. */
+	private double grabX = -1, grabY = -1;
 
 	QueueOverlay(GambleState state) {
 		this.state = state;
@@ -93,6 +106,57 @@ final class QueueOverlay {
 		ctx.getMatrices().scale(scale, scale);
 		draw(ctx, client.textRenderer);
 		ctx.getMatrices().popMatrix();
+		drawToasts(ctx, client.textRenderer, client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
+	}
+
+	/** Payment and auction pop-ups, stacked bottom-right above the hotbar so they never cover the queue. */
+	private void drawToasts(DrawContext ctx, TextRenderer tr, int screenW, int screenH) {
+		List<GambleState.Toast> list = state.activeToasts();
+		int y = screenH - 40 - list.size() * 17;
+		for (GambleState.Toast t : list) {
+			int w = tr.getWidth(t.text()) + 10;
+			int x = screenW - w - 6;
+			Draw.box(ctx, x, y, x + w, y + 14, Colors.BOX_BG);
+			ctx.drawTextWithShadow(tr, t.text(), x + 5, y + 3, t.color());
+			y += 17;
+		}
+	}
+
+	// ---- dragging ----
+
+	/** Mouse down on an empty part of the box: start moving it. */
+	boolean startDrag(double mouseX, double mouseY) {
+		double lx = (mouseX - originX) / scale;
+		double ly = (mouseY - originY) / scale;
+		if (lx < 0 || ly < 0 || lx >= boxW || ly >= boxH) {
+			return false;
+		}
+		grabX = mouseX - originX;
+		grabY = mouseY - originY;
+		return true;
+	}
+
+	boolean drag(double mouseX, double mouseY) {
+		if (grabX < 0) {
+			return false;
+		}
+		MinecraftClient client = MinecraftClient.getInstance();
+		int maxX = client.getWindow().getScaledWidth() - Math.round(boxW * scale);
+		int maxY = client.getWindow().getScaledHeight() - Math.round(boxH * scale);
+		state.config.hudX = (int) Math.max(0, Math.min(maxX, mouseX - grabX));
+		state.config.hudY = (int) Math.max(0, Math.min(maxY, mouseY - grabY));
+		originX = state.config.hudX;
+		originY = state.config.hudY;
+		return true;
+	}
+
+	boolean endDrag() {
+		if (grabX < 0) {
+			return false;
+		}
+		grabX = grabY = -1;
+		state.save();
+		return true;
 	}
 
 	/** Left click runs a tab or letter; right click on a name removes a payment that wasn't a bet. */
@@ -119,12 +183,16 @@ final class QueueOverlay {
 		Tab tab = tab();
 		int width = Math.max(tabsWidth(tr), contentWidth(tr, tab));
 		int rows = 1 + contentRows(tab);
-		Draw.box(ctx, 0, 0, width, PAD * 2 + rows * ROW, Colors.BG);
+		boxW = width;
+		boxH = PAD * 2 + rows * ROW;
+		Draw.box(ctx, 0, 0, boxW, boxH, Colors.BG);
 
 		drawTabs(ctx, tr, tab);
 		int y = PAD + ROW + 1;
 		if (tab.game != null) {
 			drawGame(ctx, tr, tab.game, y, width);
+		} else if (tab == Tab.AUCTION) {
+			drawAuction(ctx, tr, y, width);
 		} else if (tab == Tab.OWE) {
 			drawOwe(ctx, tr, y);
 		} else {
@@ -135,8 +203,15 @@ final class QueueOverlay {
 	// ---- tabs ----
 
 	private String tabLabel(Tab t) {
+		if (t == Tab.AUCTION) {
+			Auction a = state.auctions.current;
+			if (a == null) {
+				return t.label;
+			}
+			return t.label + " " + clock(a.remaining(System.currentTimeMillis())) + (a.status == Auction.Status.PAUSED ? " II" : "");
+		}
 		int n = switch (t) {
-			case OWE -> state.ledger.owed().size();
+			case OWE -> oweRows().size();
 			case STATS -> 0;
 			default -> state.ledger.pending(t.game).size();
 		};
@@ -231,27 +306,113 @@ final class QueueOverlay {
 		return Game.values()[(g.ordinal() + 1) % Game.values().length];
 	}
 
+	// ---- auction tab ----
+
+	private static final int AUCTION_RANKS = 5;
+
+	private void drawAuction(DrawContext ctx, TextRenderer tr, int y, int width) {
+		Auction a = state.auctions.current;
+		if (a == null) {
+			Auction last = state.auctions.latest();
+			ctx.drawTextWithShadow(tr, "No auction running", PAD, y, Colors.muted());
+			y += ROW;
+			if (last != null) {
+				String result = last.winner != null
+					? "Last: " + last.item + " → " + last.winner + " " + money(last.total())
+					: "Last: " + last.item + " (" + last.status.name().toLowerCase(Locale.ROOT) + ")";
+				ctx.drawTextWithShadow(tr, result, PAD, y, Colors.text());
+			}
+			y += ROW;
+			int x = link(ctx, tr, PAD, y, "Start " + clock(state.config.auctionDefaultDurationSec * 1000L), Colors.GREEN,
+				() -> state.startAuction("", state.config.auctionDefaultDurationSec, 0));
+			link(ctx, tr, x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.AUCTION));
+			return;
+		}
+
+		long left = a.remaining(System.currentTimeMillis());
+		String clock = clock(left) + (a.status == Auction.Status.PAUSED ? " paused" : "");
+		ctx.drawTextWithShadow(tr, a.item, PAD, y, Colors.text());
+		int clockColor = a.status == Auction.Status.PAUSED ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.GREEN;
+		ctx.drawTextWithShadow(tr, clock, width - PAD - tr.getWidth(clock), y, clockColor);
+		y += ROW;
+		List<Standing> ranks = a.rankings();
+		ctx.drawTextWithShadow(tr, "Total " + money(a.total()) + " · " + ranks.size() + (ranks.size() == 1 ? " player" : " players"),
+			PAD, y, Colors.muted());
+		y += ROW;
+		if (ranks.isEmpty()) {
+			ctx.drawTextWithShadow(tr, "> waiting for /pay...", PAD, y, Colors.muted());
+			y += ROW;
+		}
+		int amountX = auctionAmountX(tr, ranks);
+		for (int i = 0; i < Math.min(AUCTION_RANKS, ranks.size()); i++) {
+			Standing st = ranks.get(i);
+			ctx.drawTextWithShadow(tr, "#" + (i + 1) + " " + st.player(), PAD, y, i == 0 ? Colors.GOLD : Colors.text());
+			ctx.drawTextWithShadow(tr, money(st.total()), amountX, y, Colors.text());
+			String pct = Math.round(st.share() * 100) + "%";
+			ctx.drawTextWithShadow(tr, pct, width - PAD - tr.getWidth(pct), y, Colors.muted());
+			y += ROW;
+		}
+		if (ranks.size() > AUCTION_RANKS) {
+			ctx.drawTextWithShadow(tr, "  +" + (ranks.size() - AUCTION_RANKS) + " more", PAD, y, Colors.muted());
+			y += ROW;
+		}
+		int x = link(ctx, tr, PAD, y, a.status == Auction.Status.PAUSED ? "Resume" : "Pause", Colors.GOLD, state::togglePauseAuction);
+		x = link(ctx, tr, x, y, "+30s", Colors.text(), () -> state.extendAuction(30));
+		x = link(ctx, tr, x, y, "End", Colors.RED, state::endAuction);
+		link(ctx, tr, x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.AUCTION));
+	}
+
+	private int auctionAmountX(TextRenderer tr, List<Standing> ranks) {
+		int nameW = tr.getWidth("No auction running");
+		for (int i = 0; i < Math.min(AUCTION_RANKS, ranks.size()); i++) {
+			nameW = Math.max(nameW, tr.getWidth("#" + (i + 1) + " " + ranks.get(i).player()) + 8);
+		}
+		return PAD + Math.min(nameW, 110);
+	}
+
+	/** A clickable word; returns where the next one goes. */
+	private int link(DrawContext ctx, TextRenderer tr, int x, int y, String text, int color, Runnable action) {
+		ctx.drawTextWithShadow(tr, text, x, y, color);
+		hits.add(new Hit(x - 1, y - 1, tr.getWidth(text) + 2, ROW, action, null));
+		return x + tr.getWidth(text) + 8;
+	}
+
 	// ---- owe tab ----
 
+	/** Gamble winners and auction refunds, oldest first. */
+	private List<OweRow> oweRows() {
+		List<OweRow> rows = new ArrayList<>();
+		for (Bet b : state.ledger.owed()) {
+			rows.add(new OweRow(b.player, owedLabel(b), Tab.of(b.game).label, b.timestamp,
+				b.payoutIsElytra() ? null : () -> state.prefillPay(b), () -> state.settle(b)));
+		}
+		for (Refund r : state.auctions.openRefunds()) {
+			rows.add(new OweRow(r.player, money(r.amount), "Refund", r.timestamp,
+				() -> state.prefillPay(r.player, r.amount), () -> state.settleRefund(r)));
+		}
+		rows.sort(Comparator.comparingLong(OweRow::at));
+		return rows;
+	}
+
 	private void drawOwe(DrawContext ctx, TextRenderer tr, int y) {
-		List<Bet> owed = state.ledger.owed();
-		List<Bet> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
-		ctx.drawTextWithShadow(tr, oweHeader(owed), PAD, y, Colors.text());
+		List<OweRow> owed = oweRows();
+		List<OweRow> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
+		ctx.drawTextWithShadow(tr, oweHeader(), PAD, y, Colors.text());
 		y += ROW;
 		if (shown.isEmpty()) {
 			ctx.drawTextWithShadow(tr, "Nobody - all paid", PAD, y, Colors.muted());
 			return;
 		}
 		int[] cols = oweColumns(tr, shown);
-		for (Bet b : shown) {
-			ctx.drawTextWithShadow(tr, b.player, PAD, y, Colors.text());
-			ctx.drawTextWithShadow(tr, oweText(b), cols[0], y, Colors.GOLD);
-			ctx.drawTextWithShadow(tr, Tab.of(b.game).label, cols[1], y, Colors.muted());
+		for (OweRow r : shown) {
+			ctx.drawTextWithShadow(tr, r.player(), PAD, y, Colors.text());
+			ctx.drawTextWithShadow(tr, oweText(r), cols[0], y, Colors.GOLD);
+			ctx.drawTextWithShadow(tr, r.from(), cols[1], y, Colors.muted());
 			int lx = cols[2];
-			if (!b.payoutIsElytra()) {
-				lx = letter(ctx, tr, lx, y, "P", Colors.GOLD, () -> state.prefillPay(b));
+			if (r.pay() != null) {
+				lx = letter(ctx, tr, lx, y, "P", Colors.GOLD, r.pay());
 			}
-			letter(ctx, tr, lx, y, "D", Colors.GREEN, () -> state.settle(b));
+			letter(ctx, tr, lx, y, "D", Colors.GREEN, r.done());
 			y += ROW;
 		}
 		if (owed.size() > shown.size()) {
@@ -259,31 +420,34 @@ final class QueueOverlay {
 		}
 	}
 
-	private static String oweHeader(List<Bet> owed) {
+	private String oweHeader() {
 		long money = 0;
 		int elytras = 0;
-		for (Bet b : owed) {
+		for (Bet b : state.ledger.owed()) {
 			if (b.payoutIsElytra()) {
 				elytras++;
 			} else {
 				money += b.payout;
 			}
 		}
+		for (Refund r : state.auctions.openRefunds()) {
+			money += r.amount;
+		}
 		String s = "You owe " + money(money);
 		return elytras > 0 ? s + " + " + elytras + " Elytra" : s;
 	}
 
-	/** x of: amount, game, letters. */
-	private int[] oweColumns(TextRenderer tr, List<Bet> shown) {
+	/** x of: amount, source, letters. */
+	private int[] oweColumns(TextRenderer tr, List<OweRow> shown) {
 		int nameW = 0;
 		int amountW = 0;
-		for (Bet b : shown) {
-			nameW = Math.max(nameW, tr.getWidth(b.player));
-			amountW = Math.max(amountW, tr.getWidth(oweText(b)));
+		for (OweRow r : shown) {
+			nameW = Math.max(nameW, tr.getWidth(r.player()));
+			amountW = Math.max(amountW, tr.getWidth(oweText(r)));
 		}
 		int amountX = PAD + nameW + 6;
 		int gameX = amountX + amountW + 8;
-		int lettersX = gameX + tr.getWidth("Paper") + 6;
+		int lettersX = gameX + tr.getWidth("Refund") + 6;
 		return new int[]{amountX, gameX, lettersX};
 	}
 
@@ -307,9 +471,8 @@ final class QueueOverlay {
 		statsRow(ctx, tr, cols, y, "Lifetime", state.ledger.lifetimeStats());
 		y += ROW + 2;
 
-		String color = "Color: " + Colors.theme.displayName;
-		ctx.drawTextWithShadow(tr, color, PAD, y, Colors.text());
-		hits.add(new Hit(PAD - 1, y - 1, tr.getWidth(color) + 2, ROW, state::nextTheme, null));
+		int x = link(ctx, tr, PAD, y, "Color: " + Colors.theme.displayName, Colors.text(), state::nextTheme);
+		link(ctx, tr, x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.DASHBOARD));
 		String reset = "New session";
 		int rx = width - PAD - tr.getWidth(reset);
 		ctx.drawTextWithShadow(tr, reset, rx, y, Colors.muted());
@@ -338,7 +501,15 @@ final class QueueOverlay {
 		if (tab == Tab.STATS) {
 			return 1 + 1 + Game.values().length + 2 + 1;
 		}
-		List<Bet> list = tab == Tab.OWE ? state.ledger.owed() : state.ledger.pending(tab.game);
+		if (tab == Tab.AUCTION) {
+			Auction a = state.auctions.current;
+			if (a == null) {
+				return 3;
+			}
+			int ranks = a.rankings().size();
+			return 2 + Math.max(1, Math.min(AUCTION_RANKS, ranks)) + (ranks > AUCTION_RANKS ? 1 : 0) + 1;
+		}
+		List<?> list = tab == Tab.OWE ? oweRows() : state.ledger.pending(tab.game);
 		int shown = Math.min(MAX_ROWS, list.size());
 		return 1 + Math.max(1, shown) + (list.size() > shown ? 1 : 0);
 	}
@@ -347,10 +518,23 @@ final class QueueOverlay {
 		if (tab == Tab.STATS) {
 			return statsColumns(tr)[2] + tr.getWidth("$999.99m") + PAD;
 		}
+		if (tab == Tab.AUCTION) {
+			int w = tr.getWidth("Resume  +30s  End  Manager") + 2 * PAD + 8;
+			Auction a = state.auctions.current;
+			if (a == null) {
+				Auction last = state.auctions.latest();
+				if (last != null) {
+					w = Math.max(w, tr.getWidth("Last: " + last.item + " → " + last.winner + " " + money(last.total())) + 2 * PAD);
+				}
+				return w;
+			}
+			w = Math.max(w, tr.getWidth(a.item + "  99:99 paused") + 2 * PAD);
+			return Math.max(w, auctionAmountX(tr, a.rankings()) + tr.getWidth("$999.99m  100%") + PAD + 4);
+		}
 		if (tab == Tab.OWE) {
-			List<Bet> owed = state.ledger.owed();
-			List<Bet> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
-			int w = tr.getWidth(oweHeader(owed)) + 2 * PAD;
+			List<OweRow> owed = oweRows();
+			List<OweRow> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
+			int w = tr.getWidth(oweHeader()) + 2 * PAD;
 			return shown.isEmpty() ? w : Math.max(w, oweColumns(tr, shown)[2] + 2 * LETTER + PAD - 4);
 		}
 		List<Bet> queue = state.ledger.pending(tab.game);
@@ -391,12 +575,18 @@ final class QueueOverlay {
 		return "$" + AmountParser.format(amount).toLowerCase(Locale.ROOT);
 	}
 
-	private static String oweText(Bet b) {
-		return "awaiting manual payment of " + owedLabel(b);
+	private static String oweText(OweRow r) {
+		return "awaiting manual payment of " + r.what();
 	}
 
 	static String owedLabel(Bet b) {
 		return b.payoutIsElytra() ? "1 Elytra" : money(b.payout);
+	}
+
+	/** m:ss countdown. */
+	static String clock(long millis) {
+		long sec = (Math.max(0, millis) + 999) / 1000;
+		return String.format("%d:%02d", sec / 60, sec % 60);
 	}
 
 	static String duration(long millis) {

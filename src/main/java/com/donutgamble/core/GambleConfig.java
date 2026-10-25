@@ -28,7 +28,25 @@ public class GambleConfig {
 	/** Aqua, Purple, Gold, Red, Lime, Pink or White. Click "Profit" in game to cycle. */
 	public String theme = "AQUA";
 
+	// Auctions
+	public int auctionDefaultDurationSec = 300;
+	/** A payment with less than this many seconds left resets the clock to this many seconds. 0 = off. */
+	public int auctionAntiSnipeSec = 0;
+	/** Payments below this go to the gamble queue instead of the auction. */
+	public long auctionMinContribution = 0;
+	/** When an auction ends, owe everyone but the winner their money back. */
+	public boolean auctionRefundLosers = false;
+	/** End the auction automatically when its timer reaches zero. */
+	public boolean auctionAutoEnd = true;
+	/** While an auction is live, incoming payments count toward it instead of the gamble queue. */
+	public boolean routePaymentsToAuction = true;
+
+	/** The same player paying the same amount within this window is treated as one payment. 0 = off. */
+	public long dedupeWindowMs = 1500;
+	/** Small pop-up for each payment and auction event. */
+	public boolean notifications = true;
+
 	public Game lastGame = Game.PAPER;
-	/** Which tab the queue shows: PAPER, BLACKJACK, ELY, OWE or STATS. */
+	/** Which tab the queue shows: PAPER, BLACKJACK, ELY, AUCTION, OWE or STATS. */
 	public String activeTab = "PAPER";
 }

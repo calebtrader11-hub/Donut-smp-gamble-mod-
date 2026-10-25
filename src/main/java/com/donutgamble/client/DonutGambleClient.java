@@ -22,6 +22,7 @@ public final class DonutGambleClient implements ClientModInitializer {
 
 	private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
 	static KeyBinding OPEN_QUEUE;
+	static KeyBinding OPEN_MANAGER;
 	private static KeyBinding TOGGLE_HUD;
 	private static KeyBinding FIRST_WIN;
 	private static KeyBinding FIRST_LOSE;
@@ -34,13 +35,18 @@ public final class DonutGambleClient implements ClientModInitializer {
 		overlay = new QueueOverlay(state);
 
 		OPEN_QUEUE = register("open_queue", GLFW.GLFW_KEY_INSERT);
+		OPEN_MANAGER = register("open_manager", GLFW.GLFW_KEY_HOME);
 		TOGGLE_HUD = register("toggle_hud", GLFW.GLFW_KEY_H);
 		FIRST_WIN = register("first_win", GLFW.GLFW_KEY_RIGHT_BRACKET);
 		FIRST_LOSE = register("first_lose", GLFW.GLFW_KEY_LEFT_BRACKET);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			state.tick();
 			while (OPEN_QUEUE.wasPressed()) {
 				client.setScreen(new QueueScreen(overlay));
+			}
+			while (OPEN_MANAGER.wasPressed()) {
+				ManagerScreen.open(state, ManagerScreen.Section.DASHBOARD);
 			}
 			while (TOGGLE_HUD.wasPressed()) {
 				state.toggleHud();
@@ -62,10 +68,13 @@ public final class DonutGambleClient implements ClientModInitializer {
 
 		HudElementRegistry.addLast(Identifier.of(MOD_ID, "queue"), overlay::render);
 
-		// The letters can also be clicked while chat is open.
+		// The queue can also be clicked and dragged while chat is open.
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
 			if (screen instanceof ChatScreen) {
-				ScreenMouseEvents.allowMouseClick(screen).register((s, click) -> !overlay.click(click.x(), click.y(), click.button()));
+				ScreenMouseEvents.allowMouseClick(screen).register((s, click) -> !(overlay.click(click.x(), click.y(), click.button())
+					|| (click.button() == 0 && overlay.startDrag(click.x(), click.y()))));
+				ScreenMouseEvents.allowMouseDrag(screen).register((s, click, dx, dy) -> !overlay.drag(click.x(), click.y()));
+				ScreenMouseEvents.allowMouseRelease(screen).register((s, click) -> !overlay.endDrag());
 			}
 		});
 	}
