@@ -21,8 +21,15 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
    **pending bet**. Game is auto-guessed by range (5M–100M → Paper; 501M–701M →
    Blackjack; 101M–500M → ambiguous, defaults to last-used game). The card has
    game toggle chips (Paper / Blackjack / Ely) so the streamer can correct it.
-3. Streamer clicks **WIN** or **LOSE** on the card (or hotkeys act on the newest
-   pending bet).
+3. Streamer types the round score on the card as **Them – Me** (two small number
+   boxes, e.g. `8 – 9`, `18 – 20`). The mod decides the result from the score:
+   - Player score higher → **WIN** for player.
+   - Tie (`5 – 5`, `18 – 18`) or house higher → **LOSE** for player (house wins ties).
+   - Blackjack only: a score over 21 is a bust (player bust = LOSE; house bust and
+     player ≤ 21 = WIN).
+   Pressing **Enter**/**Confirm** locks it in. Score is optional: the WIN / LOSE
+   buttons (or hotkeys on the newest pending bet) still work without one, and
+   either button overrides the score-based result.
    - **LOSE** → house keeps the bet. Profit += bet.
    - **WIN (money)** → profit += bet − payout; an **Owed** entry
      "You owe Steve 100M" with a **Pay** button that pre-fills
@@ -38,12 +45,14 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
   codes/formatting stripped). Pure, unit tested. Hooked via Fabric
   `ClientReceiveMessageEvents` (GAME + CHAT).
 - **GameClassifier** — range-based guess. Pure, unit tested.
-- **Ledger** — bets, outcomes, owed list, session + lifetime stats (net profit,
+- **ScoreJudge** — score (them, me, game) → WIN/LOSE; ties go to the house;
+  blackjack bust rules. Pure, unit tested.
+- **Ledger** — bets (with optional score), outcomes, owed list, session + lifetime stats (net profit,
   wagered, wins, losses, biggest win/loss). Pure, unit tested.
 - **Storage** — JSON in `.minecraft/config/donutgamble/` (config.json,
   ledger.json); saved on every change so crashes lose nothing.
 - **HUD overlay** — always-on compact profit card: session Net Profit (green/red,
-  large), Wagered, W/L count, last 5 results, owed count. Position/scale
+  large), Wagered, W/L count, last 5 results with scores (e.g. `Steve 18-20 L −0`… `Alex 9-8 W −50M`), owed count. Position/scale
   configurable; toggle hotkey.
 - **Control screen** (hotkey, default `F`) — dark rounded panels, accent color:
   pending bet cards with WIN/LOSE + game chips, Owed list, elytra price input,
@@ -57,6 +66,6 @@ Auto-sending payments, OBS browser overlay, multi-account, reading other
 players' bets, automatic elytra purchasing.
 
 ## Testing
-JUnit tests for AmountParser, PaymentDetector, GameClassifier, Ledger math.
+JUnit tests for AmountParser, PaymentDetector, GameClassifier, ScoreJudge, Ledger math.
 Build with Gradle (Fabric Loom). Manual in-game verification by the streamer
 (real Donut SMP message format to be confirmed; regex is editable in config).
