@@ -1,8 +1,8 @@
 # Donut Gamble Tracker
 
 A client-side Fabric mod for **Minecraft 1.21.11** that tracks gamble bets on Donut SMP
-while you stream. When someone `/pay`s you, the bet shows up in a panel. You call the
-result, and your profit updates live on screen.
+while you stream. When someone `/pay`s you, the bet joins an on-screen queue. You click
+who won, and your profit updates live.
 
 ![Queue](docs/screenshots/queue.png)
 
@@ -36,6 +36,7 @@ To click the letters, open chat (`T`) or press `Insert` to free the mouse.
 | **P** | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
 | **D** | Done: they've been paid, or their elytra is in their order. |
 | Right-click a name | Remove a payment that wasn't a bet. |
+| Right-click **Profit** | Start a new session (profit back to 0 for a new stream). |
 
 | Key | What it does |
 |---|---|

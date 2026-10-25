@@ -106,6 +106,7 @@ final class QueueOverlay {
 		int y = PAD;
 		ctx.drawTextWithShadow(tr, "Profit ", PAD, y, Colors.PINK);
 		ctx.drawTextWithShadow(tr, AmountParser.formatSigned(net), PAD + tr.getWidth("Profit "), y, Colors.profit(net));
+		hits.add(new Hit(PAD, y - 1, width - 2 * PAD, ROW, null, state::newSession));
 		y += ROW;
 
 		if (shownQueue.isEmpty()) {
