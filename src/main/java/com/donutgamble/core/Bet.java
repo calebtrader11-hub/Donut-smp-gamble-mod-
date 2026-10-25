@@ -16,6 +16,8 @@ public class Bet {
 	public long payout;
 	/** Profit for the house from this bet once resolved. */
 	public long houseNet;
+	/** Called as a tie (counts as a player loss). */
+	public boolean tie;
 	/** True once the winner has been paid / their elytra delivered. */
 	public boolean settled;
 
@@ -32,7 +34,7 @@ public class Bet {
 			return outcome == Outcome.PLAYER_WIN ? "HIT" : "MISS";
 		}
 		if (scoreThem == null || scoreMe == null) {
-			return outcome == Outcome.PLAYER_WIN ? "W" : "L";
+			return tie ? "T" : outcome == Outcome.PLAYER_WIN ? "W" : "L";
 		}
 		return scoreThem + "-" + scoreMe;
 	}

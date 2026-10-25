@@ -84,6 +84,25 @@ class LedgerTest {
 	}
 
 	@Test
+	void queueIsOldestFirst() {
+		Ledger l = ledger();
+		l.addPayment("First", 10 * M, Game.PAPER, 2000);
+		l.addPayment("Second", 10 * M, Game.PAPER, 2001);
+		assertEquals("First", l.pending().get(0).player);
+	}
+
+	@Test
+	void tieIsHouseWin() {
+		Ledger l = ledger();
+		Bet b = l.addPayment("Bob", 20 * M, Game.PAPER, 2000);
+		l.resolveTie(b.id, null, null, cfg);
+		assertEquals(20 * M, l.sessionStats().net());
+		assertEquals("T", l.find(b.id).scoreLabel());
+		l.setScore(b.id, 5, 5);
+		assertEquals("5-5", l.find(b.id).scoreLabel());
+	}
+
+	@Test
 	void changeGameBeforeResolve() {
 		Ledger l = ledger();
 		Bet b = l.addPayment("S", 200 * M, Game.PAPER, 2000);

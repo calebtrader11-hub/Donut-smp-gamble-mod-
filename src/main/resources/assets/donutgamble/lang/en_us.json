@@ -1,7 +1,7 @@
 {
 	"key.category.donutgamble.main": "Donut Gamble",
-	"key.donutgamble.open_panel": "Open gamble panel",
-	"key.donutgamble.toggle_hud": "Show/hide profit HUD",
-	"key.donutgamble.newest_win": "Newest bet: player WINS",
-	"key.donutgamble.newest_lose": "Newest bet: player LOSES"
+	"key.donutgamble.open_queue": "Click the queue (frees mouse)",
+	"key.donutgamble.toggle_hud": "Show/hide queue",
+	"key.donutgamble.first_win": "#1 in queue: WIN",
+	"key.donutgamble.first_lose": "#1 in queue: LOSE"
 }

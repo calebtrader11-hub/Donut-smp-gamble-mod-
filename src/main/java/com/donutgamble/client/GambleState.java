@@ -1,6 +1,5 @@
 package com.donutgamble.client;
 
-import com.donutgamble.core.AmountParser;
 import com.donutgamble.core.Bet;
 import com.donutgamble.core.GambleConfig;
 import com.donutgamble.core.Game;
@@ -13,18 +12,12 @@ import net.minecraft.client.gui.screen.ChatScreen;
 
 import java.util.List;
 
-/** The mod's live state and every action the GUI and hotkeys can take. Saves after each change. */
+/** The mod's live state and every action the queue and hotkeys can take. Saves after each change. */
 public final class GambleState {
-	public record Toast(String text, int color, long until) {
-	}
-
-	private static final long TOAST_MS = 4000;
-
 	private final Storage storage = new Storage();
 	public final GambleConfig config;
 	public final Ledger ledger;
-	private PaymentDetector detector;
-	private Toast toast;
+	private final PaymentDetector detector;
 
 	GambleState() {
 		config = storage.loadConfig();
@@ -45,7 +38,6 @@ public final class GambleState {
 			}
 			Game game = GameClassifier.guess(p.amount(), config.lastGame, config);
 			ledger.addPayment(p.player(), p.amount(), game, System.currentTimeMillis());
-			showToast("New bet: " + p.player() + " paid " + AmountParser.format(p.amount()) + " (" + game.displayName + ")", Colors.GOLD);
 			save();
 		});
 	}
@@ -55,21 +47,35 @@ public final class GambleState {
 		save();
 	}
 
-	public void resolve(Bet bet, Outcome outcome, Integer them, Integer me) {
-		config.lastGame = bet.game;
-		ledger.resolve(bet.id, outcome, them, me, config);
-		if (outcome == Outcome.PLAYER_WIN) {
-			showToast("You owe " + bet.player + " " + owedLabel(bet) + (bet.payoutIsElytra() ? " · fill their order" : ""), Colors.GOLD);
-		} else {
-			showToast(bet.player + " lost · " + AmountParser.formatSigned(bet.houseNet), config.accentColor);
-		}
+	/** Paper → Blackjack → Ely → Paper. */
+	public void cycleGame(Bet bet) {
+		Game[] games = Game.values();
+		ledger.setGame(bet.id, games[(bet.game.ordinal() + 1) % games.length]);
 		save();
 	}
 
-	public void resolveNewest(Outcome outcome) {
-		List<Bet> pending = ledger.pending();
-		if (!pending.isEmpty()) {
-			resolve(pending.get(0), outcome, null, null);
+	public void resolve(Bet bet, Outcome outcome, Integer them, Integer me) {
+		config.lastGame = bet.game;
+		ledger.resolve(bet.id, outcome, them, me, config);
+		save();
+	}
+
+	public void resolveTie(Bet bet) {
+		config.lastGame = bet.game;
+		ledger.resolveTie(bet.id, null, null, config);
+		save();
+	}
+
+	public void setScore(Bet bet, Integer them, Integer me) {
+		ledger.setScore(bet.id, them, me);
+		save();
+	}
+
+	/** Hotkeys act on #1 in the queue. */
+	public void resolveFirst(Outcome outcome) {
+		List<Bet> queue = ledger.pending();
+		if (!queue.isEmpty()) {
+			resolve(queue.get(0), outcome, null, null);
 		}
 	}
 
@@ -90,7 +96,6 @@ public final class GambleState {
 
 	public void newSession() {
 		ledger.startSession(System.currentTimeMillis());
-		showToast("New session started", config.accentColor);
 		save();
 	}
 
@@ -102,17 +107,5 @@ public final class GambleState {
 	public void toggleHud() {
 		config.hudVisible = !config.hudVisible;
 		save();
-	}
-
-	public static String owedLabel(Bet bet) {
-		return bet.payoutIsElytra() ? "1 Elytra" : AmountParser.format(bet.payout);
-	}
-
-	private void showToast(String text, int color) {
-		toast = new Toast(text, color, System.currentTimeMillis() + TOAST_MS);
-	}
-
-	public Toast activeToast() {
-		return toast != null && toast.until() > System.currentTimeMillis() ? toast : null;
 	}
 }

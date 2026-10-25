@@ -29,8 +29,6 @@ public class GambleConfig {
 	public int hudX = 6;
 	public int hudY = 6;
 	public float hudScale = 1.0f;
-	/** ARGB accent used for "good for you" numbers. */
-	public int accentColor = 0xFF3DDC97;
 
 	public Game lastGame = Game.PAPER;
 }

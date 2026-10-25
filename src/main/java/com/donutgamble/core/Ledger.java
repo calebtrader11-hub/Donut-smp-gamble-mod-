@@ -1,6 +1,7 @@
 package com.donutgamble.core;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
@@ -62,6 +63,24 @@ public class Ledger {
 		}
 	}
 
+	/** A tie: the house keeps the bet. */
+	public void resolveTie(long id, Integer them, Integer me, GambleConfig cfg) {
+		resolve(id, Outcome.PLAYER_LOSE, them, me, cfg);
+		Bet b = find(id);
+		if (b != null) {
+			b.tie = true;
+		}
+	}
+
+	/** Records the score after the result was already called. */
+	public void setScore(long id, Integer them, Integer me) {
+		Bet b = find(id);
+		if (b != null && !b.isPending()) {
+			b.scoreThem = them;
+			b.scoreMe = me;
+		}
+	}
+
 	public void settle(long id) {
 		Bet b = find(id);
 		if (b != null && !b.isPending()) {
@@ -73,9 +92,11 @@ public class Ledger {
 		bets.removeIf(b -> b.id == id && b.isPending());
 	}
 
-	/** Newest first. */
+	/** The queue: oldest first, so #1 is the bet being played now. */
 	public List<Bet> pending() {
-		return filterNewestFirst(Bet::isPending);
+		List<Bet> list = filterNewestFirst(Bet::isPending);
+		Collections.reverse(list);
+		return list;
 	}
 
 	/** Oldest first, so the first person to win is paid first. */

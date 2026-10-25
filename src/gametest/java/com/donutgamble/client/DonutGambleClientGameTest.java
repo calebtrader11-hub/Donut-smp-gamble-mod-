@@ -11,14 +11,14 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.text.Text;
 
-/** Drives a real client: fake /pay messages, resolve some bets, screenshot the HUD and the panel. */
+/** Drives a real client: fake /pay messages, call some bets, screenshot the queue and the score box. */
 public class DonutGambleClientGameTest implements FabricClientGameTest {
 	private static final long M = 1_000_000L;
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		// No world: software-rendered CI can't load one in time. The title screen is enough to
-		// exercise chat detection, the ledger and both GUIs.
+		// exercise chat detection, the ledger and the GUIs.
 		context.waitForScreen(TitleScreen.class);
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
@@ -26,54 +26,50 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			state.newSession();
 
 			pay(client, "Max paid you $400M.");
-			state.resolve(newest(state), Outcome.PLAYER_LOSE, 19, 19);
-			pay(client, "Bob paid you $20M.");
-			state.resolve(newest(state), Outcome.PLAYER_LOSE, 5, 5);
+			state.resolveTie(last(state));
 			pay(client, "Kira paid you $120M.");
-			state.setGame(newest(state), Game.ELY);
-			state.resolve(newest(state), Outcome.PLAYER_WIN, null, null);
+			state.setGame(last(state), Game.ELY);
+			state.resolve(last(state), Outcome.PLAYER_WIN, null, null);
 			pay(client, "Alex_ paid you $45M.");
-			state.resolve(newest(state), Outcome.PLAYER_WIN, 9, 8);
-			pay(client, "Steve paid you $250M.");
-			state.setGame(newest(state), Game.BLACKJACK);
-			state.resolve(newest(state), Outcome.PLAYER_LOSE, 18, 20);
+			state.resolve(last(state), Outcome.PLAYER_WIN, 9, 8);
 
 			pay(client, "[VIP] Bob: Notch paid you $500M");
-			pay(client, "You received $250M from Steve");
-			state.setGame(newest(state), Game.BLACKJACK);
-			pay(client, "Alex_ paid you $45M.");
+			pay(client, "RazorBroGaming paid you $50M.");
+			pay(client, "You received $250M from hayden260");
 			pay(client, "xNova paid you $120M.");
-			state.setGame(newest(state), Game.ELY);
+			state.setGame(last(state), Game.ELY);
 
-			check(state.ledger.pending().size() == 3, "3 pending bets (spoofed chat ignored)");
+			check(state.ledger.pending().size() == 3, "3 queued bets (spoofed chat ignored)");
+			check(state.ledger.pending().get(0).player.equals("RazorBroGaming"), "queue is oldest first");
 			check(state.ledger.owed().size() == 2, "2 owed payouts");
-			check(state.ledger.sessionStats().net() == 400 * M + 20 * M - 60 * M - 45 * M + 250 * M, "session net");
-			GambleScreen.draftScore(state.ledger.pending().get(2).id, "18", "20");
+			check(state.ledger.sessionStats().net() == 400 * M - 60 * M - 45 * M, "session net");
 		});
 
-		context.setScreen(() -> new HudPreviewScreen(DonutGambleClient.state));
+		context.setScreen(() -> new OverlayPreviewScreen());
 		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-hud");
+		context.takeScreenshot("donutgamble-queue");
 
-		context.setScreen(() -> new GambleScreen(DonutGambleClient.state));
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			Bet first = state.ledger.pending().get(0);
+			state.resolve(first, Outcome.PLAYER_LOSE, null, null);
+			client.setScreen(ScoreScreen.score(state, first, "LOST"));
+		});
 		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-panel");
+		context.takeScreenshot("donutgamble-score");
 		context.setScreen(() -> null);
 	}
 
-	/** Draws the in-game HUD over the title screen panorama. */
-	private static final class HudPreviewScreen extends Screen {
-		private final HudRenderer hud;
-
-		HudPreviewScreen(GambleState state) {
-			super(Text.literal("HUD preview"));
-			hud = new HudRenderer(state);
+	/** Draws the in-game queue over the title screen panorama. */
+	private static final class OverlayPreviewScreen extends Screen {
+		OverlayPreviewScreen() {
+			super(Text.literal("Queue preview"));
 		}
 
 		@Override
 		public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 			super.render(ctx, mouseX, mouseY, delta);
-			hud.render(ctx, null);
+			DonutGambleClient.overlay.render(ctx, null);
 		}
 	}
 
@@ -81,8 +77,9 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		client.getMessageHandler().onGameMessage(Text.literal(message), false);
 	}
 
-	private static Bet newest(GambleState state) {
-		return state.ledger.pending().get(0);
+	private static Bet last(GambleState state) {
+		var queue = state.ledger.pending();
+		return queue.get(queue.size() - 1);
 	}
 
 	private static void check(boolean ok, String what) {
