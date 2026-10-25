@@ -252,7 +252,7 @@ final class HudManager {
 			}
 			case "Competitive" -> on.addAll(java.util.List.of("queue.paper", "queue.blackjack", "queue.ely", "activity", "auction",
 				"leaderboard", "profit", "toasts"));
-			default -> on.addAll(java.util.List.of("queue", "auction", "leaderboard", "toasts"));
+			default -> on.addAll(java.util.List.of("queue", "auction", "leaderboard", "profit", "toasts"));
 		}
 		java.util.Map<String, int[]> sizes = new java.util.HashMap<>();
 		for (HudElement e : elements) {

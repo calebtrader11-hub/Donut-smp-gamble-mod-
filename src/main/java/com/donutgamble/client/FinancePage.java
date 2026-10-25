@@ -96,7 +96,8 @@ final class FinancePage extends ManagerPage {
 		int gap = ManagerScreen.GAP;
 		int tw = (cw - 3 * gap) / 4;
 		int ty = cy + 22;
-		m.statTile(cx, ty, tw, "Net profit", Fmt.signed(r.net()), Colors.profit(r.net()), false);
+		long profit = com.donutgamble.core.Profit.net(state.finance, state.ledger, state.auctions, from);
+		m.statTile(cx, ty, tw, "Profit", Fmt.signed(profit), Colors.profit(profit), false);
 		m.statTile(cx + (tw + gap), ty, tw, "Received", Fmt.money(r.received()), Colors.GREEN, false);
 		m.statTile(cx + 2 * (tw + gap), ty, tw, "Paid out", Fmt.money(r.paidOut()), Colors.RED, false);
 		m.statTile(cx + 3 * (tw + gap), ty, cw - 3 * (tw + gap), "Expenses", Fmt.money(r.expenses()), Colors.ORANGE, false);
@@ -209,21 +210,16 @@ final class FinancePage extends ManagerPage {
 	private void breakdown(int x, int y, int w, int h, long from) {
 		m.card(x, y, w, h);
 		m.cardTitle(x, y, "Games", Icons.GAME);
-		m.right("W-L-T · net", x + w - 8, y + 7, Colors.INK_FAINT);
+		m.right("W-L-T", x + w - 8, y + 7, Colors.INK_FAINT);
 		int ry = y + 21;
 		boolean any = false;
 		for (Game g : Game.values()) {
 			Stats s = state.ledger.stats(g, from, Long.MAX_VALUE);
 			int played = s.playerWins() + s.playerLosses() + s.ties();
 			any |= played > 0;
-			String net = played == 0 ? "-" : Fmt.signed(s.net());
 			String wlt = s.playerWins() + "-" + s.playerLosses() + "-" + s.ties();
-			int netX = x + w - 8 - m.width(net);
-			int wltX = netX - 6 - m.width(wlt);
-			String name = w >= 170 ? g.displayName : g == Game.BLACKJACK ? "BJ" : g == Game.ELY ? "Ely" : g.displayName;
-			m.text(m.fit(name, wltX - x - 12), x + 8, ry, Colors.INK);
-			m.text(wlt, wltX, ry, Colors.INK_DIM);
-			m.right(net, x + w - 8, ry, played == 0 ? Colors.INK_FAINT : Colors.profit(s.net()));
+			m.text(m.fit(g.displayName, w - 24 - m.width(wlt)), x + 8, ry, Colors.INK);
+			m.right(wlt, x + w - 8, ry, played == 0 ? Colors.INK_FAINT : Colors.INK_DIM);
 			ry += 12;
 		}
 		if (!any) {

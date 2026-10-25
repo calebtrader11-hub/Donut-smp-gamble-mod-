@@ -34,7 +34,7 @@ final class DashboardPage extends ManagerPage {
 		CARDS.put("GAMES", "Games");
 		CARDS.put("PAYOUTS", "Payouts to send");
 		CARDS.put("RECENT_PAYMENTS", "Recent payments");
-		CARDS.put("LIFETIME", "Lifetime");
+		CARDS.put("LIFETIME", "Total profit");
 		CARDS.put("AUCTION_STATS", "Auction stats");
 	}
 
@@ -142,9 +142,9 @@ final class DashboardPage extends ManagerPage {
 		m.card(x, y, w, h);
 		switch (id) {
 			case "LIVE_AUCTION" -> liveAuction(x, y, w, h);
-			case "SESSION" -> money(x, y, w, "This session", state.finance.report(state.ledger.sessionStart),
+			case "SESSION" -> money(x, y, w, "This session", state.sessionProfit(), state.finance.report(state.ledger.sessionStart),
 				state.ledger.sessionStats(), Fmt.duration(System.currentTimeMillis() - state.ledger.sessionStart));
-			case "LIFETIME" -> money(x, y, w, "Lifetime", state.finance.report(0), state.ledger.lifetimeStats(), "all time");
+			case "LIFETIME" -> money(x, y, w, "Total profit", state.totalProfit(), state.finance.report(0), state.ledger.lifetimeStats(), "all time");
 			case "QUICK_ACTIONS" -> quickActions(x, y, w);
 			case "GAMES" -> games(x, y, w);
 			case "PAYOUTS" -> payouts(x, y, w, h);
@@ -210,13 +210,14 @@ final class DashboardPage extends ManagerPage {
 		m.region(x, y, w, h - 12, () -> m.show(ManagerScreen.Section.AUCTION));
 	}
 
-	private void money(int x, int y, int w, String title, FinanceReport r, Stats games, String note) {
-		m.cardTitle(x, y, title, title.equals("Lifetime") ? Icons.FINANCE : Icons.COIN);
+	/** {@code profit}: everything in minus everything out and still owed (core.Profit). */
+	private void money(int x, int y, int w, String title, long profit, FinanceReport r, Stats games, String note) {
+		m.cardTitle(x, y, title, title.equals("Total profit") ? Icons.FINANCE : Icons.COIN);
 		m.right(note, x + w - 8, y + 7, Colors.INK_FAINT);
 		boolean hide = m.hides(Surface.DASHBOARD);
 		int cw = (w - 16) / 2;
 		int played = games.playerWins() + games.playerLosses() + games.ties();
-		m.stat(x + 8, y + 22, cw - 4, "Net", Fmt.signed(r.net()), Colors.profit(r.net()), hide);
+		m.stat(x + 8, y + 22, cw - 4, "Profit", Fmt.signed(profit), Colors.profit(profit), hide);
 		m.stat(x + 8 + cw, y + 22, cw - 4, "Received", Fmt.money(r.received()), Colors.INK, hide);
 		m.stat(x + 8, y + 45, cw - 4, "Paid out", Fmt.money(r.paidOut() + r.expenses()), Colors.INK, hide);
 		m.stat(x + 8 + cw, y + 45, cw - 4, "Games played", Integer.toString(played), Colors.INK, false);
@@ -275,10 +276,9 @@ final class DashboardPage extends ManagerPage {
 			Paint.pill(m.ctx, x + 8, ry - 1, cw, 10, q > 0 ? Colors.alpha(Colors.accent(), 0x40) : Colors.alpha(Colors.LINE_HI, 0x80));
 			m.center(count, x + 8 + cw / 2, ry, q > 0 ? Colors.INK : Colors.INK_FAINT);
 			String wlt = s.playerWins() + "-" + s.playerLosses() + "-" + s.ties();
-			String value = hide ? wlt : Fmt.signed(s.net());
-			int vw = m.width(value);
+			int vw = m.width(wlt);
 			m.text(m.fit(g.displayName, w - 30 - cw - vw), x + 12 + cw, ry, Colors.INK);
-			m.right(value, x + w - 8, ry, hide ? Colors.INK_DIM : Colors.profit(s.net()));
+			m.right(wlt, x + w - 8, ry, Colors.INK_DIM);
 			QueueHud.Tab tab = QueueHud.Tab.valueOf(g == Game.ELY ? "ELY" : g.name());
 			m.region(x + 3, ry - 2, w - 6, 13, () -> openQueue(tab));
 			ry += 14;

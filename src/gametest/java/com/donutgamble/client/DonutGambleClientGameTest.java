@@ -451,7 +451,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.takeScreenshot("donutgamble-manager-auction-item");
 
 		// Streamer Mode: record every string drawn on every surface and check nothing private is among them.
-		String[] secrets = new String[4];
+		String[] secrets = new String[6];
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			var session = state.finance.report(state.ledger.sessionStart);
@@ -460,6 +460,8 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			secrets[1] = Fmt.money(session.received());
 			secrets[2] = Fmt.signed(life.net());
 			secrets[3] = Fmt.signed(state.ledger.sessionStats().net());
+			secrets[4] = Fmt.signed(state.sessionProfit());
+			secrets[5] = Fmt.signed(state.totalProfit());
 			state.notify("Exported test.csv", Colors.text());
 			Bet b = state.ledger.pending(Game.PAPER).get(0);
 			state.callTie(b);
@@ -469,7 +471,8 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.DASHBOARD));
 		context.waitTicks(3);
 		context.runOnClient(client -> {
-			check(Paint.audit.stream().anyMatch(t -> t.contains(secrets[0])), "audit sees the session net when Streamer Mode is off");
+			check(Paint.audit.stream().anyMatch(t -> t.contains(secrets[4])), "audit sees the session profit when Streamer Mode is off");
+			check(Paint.audit.stream().anyMatch(t -> t.contains(secrets[5])), "audit sees the total profit when Streamer Mode is off");
 			Paint.audit.clear();
 			DonutGambleClient.state.config.privacy.streamerMode = true;
 		});

@@ -32,6 +32,35 @@ class CoreV3Test {
 	}
 
 	@Test
+	void profitIsOneNumberForEverything() {
+		GambleConfig cfg = new GambleConfig();
+		cfg.elytraPrice = 30 * M;
+		Ledger l = new Ledger();
+		FinanceBook f = new FinanceBook();
+		AuctionManager a = new AuctionManager();
+		// Paper: 50m in, player wins 2x = owes 100m.
+		Bet paper = l.addPayment("A", 50 * M, Game.PAPER, 10);
+		f.record(Transaction.Type.INCOMING, Transaction.Source.GAMBLE, "A", 50 * M, "", 10, false);
+		l.resolve(paper.id, Outcome.PLAYER_WIN, null, null, cfg);
+		// Blackjack loss: house keeps 200m.
+		Bet bj = l.addPayment("B", 200 * M, Game.BLACKJACK, 20);
+		f.record(Transaction.Type.INCOMING, Transaction.Source.GAMBLE, "B", 200 * M, "", 20, false);
+		l.resolve(bj.id, Outcome.PLAYER_LOSE, null, null, cfg);
+		// Auction: 300m collected, prize cost 120m.
+		f.record(Transaction.Type.INCOMING, Transaction.Source.AUCTION, "C", 300 * M, "", 30, false);
+		f.record(Transaction.Type.EXPENSE, Transaction.Source.AUCTION, "-", 120 * M, "prize", 31, false);
+		// 50 + 200 + 300 - 120 - 100 owed = 330
+		assertEquals(330 * M, Profit.net(f, l, a, 0));
+		// Paying the winner moves the 100m from owed to paid out: same profit, not counted twice.
+		f.record(Transaction.Type.PAYOUT, Transaction.Source.GAMBLE, "A", 100 * M, "", 40, false);
+		l.settle(paper.id);
+		assertEquals(330 * M, Profit.net(f, l, a, 0));
+		assertEquals(0, Profit.owed(l, a, 0));
+		// From t=30: auction 300 - prize 120 - the 100 payout made at t=40.
+		assertEquals(80 * M, Profit.net(f, l, a, 30), "since a time: only what happened after it");
+	}
+
+	@Test
 	void rankingsCacheFollowsChanges() {
 		Auction a = new Auction();
 		a.addContribution("A", 10 * M, 1, 1, false);

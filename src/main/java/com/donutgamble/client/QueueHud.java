@@ -22,7 +22,7 @@ import java.util.Locale;
  * The queue, split into tabs:
  * <pre>
  *  Paper 3   BJ 1   Ely 1   Auction 4:12   Owe 2   Stats
- *  Paper profit +420M
+ *  Total profit +420M
  *  1  RazorBroGaming   $50m   W L T   →BJ
  *  2  jimbo01          $75m   W L T   →BJ
  * </pre>
@@ -173,7 +173,7 @@ final class QueueHud extends HudElement {
 
 	private int contentRows(Tab tab) {
 		if (tab == Tab.STATS) {
-			return 1 + 1 + Game.values().length + 2 + 1;
+			return 5;
 		}
 		if (tab == Tab.AUCTION) {
 			Auction a = state.auctions.current;
@@ -191,7 +191,7 @@ final class QueueHud extends HudElement {
 
 	private int contentWidth(TextRenderer tr, Tab tab) {
 		if (tab == Tab.STATS) {
-			return statsColumns(tr)[2] + tr.getWidth("$999.99m") + PAD;
+			return Math.max(tr.getWidth("Total profit") + 16 + tr.getWidth("+$999.99m") * 2, tr.getWidth("Color: Electric blue  Manager  New session")) + 2 * PAD;
 		}
 		if (tab == Tab.AUCTION) {
 			int w = tr.getWidth("Resume   +30s   End   Manager") + 2 * PAD + 8;
@@ -310,8 +310,8 @@ final class QueueHud extends HudElement {
 		if (hideMoney()) {
 			Paint.hudText(ctx, tr, game.displayName + " · " + queue.size() + " waiting", PAD, y, Colors.muted());
 		} else {
-			long net = state.ledger.sessionStats(game).net();
-			int x = Paint.hudText(ctx, tr, game.displayName + " profit ", PAD, y, Colors.muted());
+			long net = state.totalProfit();
+			int x = Paint.hudText(ctx, tr, "Total profit ", PAD, y, Colors.muted());
 			Paint.hudText(ctx, tr, Fmt.signed(net), x, y, Colors.profit(net));
 		}
 		y += ROW;
@@ -531,42 +531,26 @@ final class QueueHud extends HudElement {
 
 	// ---- stats tab ----
 
+	/** Everything in one number: total profit, plus this session. */
 	private void drawStats(int y, int width) {
-		long sessionMs = System.currentTimeMillis() - state.ledger.sessionStart;
-		Paint.hudText(ctx, tr, "This session " + Fmt.duration(sessionMs), PAD, y, Colors.text());
+		long total = state.totalProfit();
+		Paint.hudText(ctx, tr, "Total profit", PAD, y + 4, Colors.muted());
+		String t = Fmt.signed(total);
+		Paint.big(ctx, tr, t, width - PAD - tr.getWidth(t) * 2, y, 2, Colors.profit(total), true);
+		y += 2 * ROW;
+		long session = state.sessionProfit();
+		Stats s = state.ledger.sessionStats();
+		Paint.hudText(ctx, tr, "This session " + Fmt.duration(System.currentTimeMillis() - state.ledger.sessionStart), PAD, y, Colors.text());
+		String sv = Fmt.signed(session);
+		Paint.hudText(ctx, tr, sv, width - PAD - tr.getWidth(sv), y, Colors.profit(session));
 		y += ROW;
-		int[] cols = statsColumns(tr);
-		Paint.hudText(ctx, tr, "Profit", cols[0], y, Colors.muted());
-		Paint.hudText(ctx, tr, "W-L-T", cols[1], y, Colors.muted());
-		Paint.hudText(ctx, tr, "Bet", cols[2], y, Colors.muted());
-		y += ROW;
-		for (Game g : Game.values()) {
-			statsRow(cols, y, g.displayName, state.ledger.sessionStats(g));
-			y += ROW;
-		}
-		statsRow(cols, y, "Total", state.ledger.sessionStats());
-		y += ROW;
-		statsRow(cols, y, "Lifetime", state.ledger.lifetimeStats());
+		Paint.hudText(ctx, tr, "W " + s.playerWins() + " · L " + s.playerLosses() + " · T " + s.ties() + " · " + Fmt.money(s.wagered()) + " bet",
+			PAD, y, Colors.muted());
 		y += ROW + 1;
 
 		int x = link(PAD, y, "Color: " + Colors.theme().displayName, Colors.text(), state::nextTheme);
 		link(x, y, "Manager", Colors.text(), () -> ManagerScreen.open(state, ManagerScreen.Section.DASHBOARD));
 		String reset = "New session";
 		link(width - PAD - tr.getWidth(reset), y, reset, Colors.muted(), state::newSession);
-	}
-
-	private void statsRow(int[] cols, int y, String label, Stats s) {
-		Paint.hudText(ctx, tr, label, PAD, y, Colors.text());
-		Paint.hudText(ctx, tr, Fmt.signed(s.net()), cols[0], y, Colors.profit(s.net()));
-		Paint.hudText(ctx, tr, s.playerWins() + "-" + s.playerLosses() + "-" + s.ties(), cols[1], y, Colors.text());
-		Paint.hudText(ctx, tr, Fmt.money(s.wagered()), cols[2], y, Colors.text());
-	}
-
-	/** x of: profit, W-L-T, wagered. */
-	private int[] statsColumns(TextRenderer tr) {
-		int profitX = PAD + tr.getWidth("Ely Arrows") + 10;
-		int wltX = profitX + tr.getWidth("+$999.99m") + 8;
-		int betX = wltX + tr.getWidth("99-99-99") + 8;
-		return new int[]{profitX, wltX, betX};
 	}
 }

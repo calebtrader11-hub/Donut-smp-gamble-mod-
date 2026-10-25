@@ -171,6 +171,17 @@ draws at the next smaller whole scale so text stays sharp instead of overlapping
 
 ### How the money is counted
 
+**One profit number for everything.** Games, auctions and anything else go into a single total:
+
+> Profit = all money in − all money out (payouts, elytras, prize costs, expenses) − what you still owe
+
+Subtracting what you still owe means a win counts against you the moment you call it, not only when you
+pay it, and nothing is counted twice. It's shown as **Total profit** on the queue (every game tab), the
+Stats tab, the Profit HUD (on by default) and the Dashboard, with "this session" next to it. It's
+tracked automatically from the `/pay` messages; you never have to add anything up.
+
+
+
 - **Received**: every incoming `/pay`, whether it went to a bet or an auction.
 - **Paid out**: every `You paid X $ …` the server shows you. A payout that matches an owed
   winner or refund also clears that row.

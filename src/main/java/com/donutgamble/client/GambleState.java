@@ -696,6 +696,16 @@ public final class GambleState {
 		prefillPay(bet.player, bet.payout);
 	}
 
+	/** All-time profit across games, auctions and everything else (see {@link com.donutgamble.core.Profit}). */
+	public long totalProfit() {
+		return com.donutgamble.core.Profit.net(finance, ledger, auctions, 0);
+	}
+
+	/** Profit since the session started. */
+	public long sessionProfit() {
+		return com.donutgamble.core.Profit.net(finance, ledger, auctions, ledger.sessionStart);
+	}
+
 	public void newSession() {
 		ledger.startSession(System.currentTimeMillis());
 		notify("New session started", Colors.text());

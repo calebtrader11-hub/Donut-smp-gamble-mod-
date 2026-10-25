@@ -75,7 +75,7 @@ public class GambleConfig {
 	public NotificationSettings notices = new NotificationSettings();
 	/** Dashboard cards in display order; missing ids are hidden. */
 	public List<String> dashboardCards = new ArrayList<>(List.of(
-		"LIVE_AUCTION", "SESSION", "QUICK_ACTIONS", "GAMES", "PAYOUTS", "RECENT_PAYMENTS", "LIFETIME", "AUCTION_STATS"));
+		"LIFETIME", "SESSION", "LIVE_AUCTION", "QUICK_ACTIONS", "GAMES", "PAYOUTS", "RECENT_PAYMENTS", "AUCTION_STATS"));
 	/** Defaults for new auctions. */
 	public String auctionBidNotify = "ALL";
 	/** Announce "ending soon" at this many seconds left (0 = off). */
