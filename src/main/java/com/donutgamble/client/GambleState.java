@@ -44,6 +44,11 @@ public final class GambleState {
 			}
 			Game game = GameClassifier.guess(p.amount(), config.lastGame, config);
 			ledger.addPayment(p.player(), p.amount(), game, System.currentTimeMillis());
+			// Jump to the new bet's tab if the open game tab has nothing waiting.
+			Game open = QueueOverlay.Tab.parse(config.activeTab).game;
+			if (open != null && open != game && ledger.pending(open).isEmpty()) {
+				config.activeTab = QueueOverlay.Tab.of(game).name();
+			}
 			save();
 		});
 	}
@@ -77,9 +82,10 @@ public final class GambleState {
 		save();
 	}
 
-	/** Hotkeys act on #1 in the queue. */
+	/** Hotkeys act on #1 in the open game tab (or the oldest bet overall on Owe/Stats). */
 	public void resolveFirst(Outcome outcome) {
-		List<Bet> queue = ledger.pending();
+		Game game = QueueOverlay.Tab.parse(config.activeTab).game;
+		List<Bet> queue = game != null ? ledger.pending(game) : ledger.pending();
 		if (!queue.isEmpty()) {
 			resolve(queue.get(0), outcome, null, null);
 		}

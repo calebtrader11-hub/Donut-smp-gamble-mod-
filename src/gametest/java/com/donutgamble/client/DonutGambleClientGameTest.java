@@ -49,18 +49,23 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			String[] names = {"jimbo01", "BeanznBread", ".BedrockKid", "Sk8r_Boi", "x_X_Gamer_X_x", "Tobias", "Lunaa", "zz9", "Pepperoni_Pete", "AAA"};
 			for (int i = 0; i < names.length; i++) {
 				pay(client, names[i] + " paid you $ " + (10 + i * 7) + "M");
+				state.setGame(last(state), Game.values()[i % 3]);
 			}
-			check(state.ledger.pending().size() == 13, "every player's payment is queued");
-			check(state.ledger.sessionStats().net() == 400 * M - 60 * M - 45 * M, "session net");
+			// A few finished blackjack hands so every tab has numbers.
+			for (Bet b : state.ledger.pending(Game.BLACKJACK).subList(0, 2)) {
+				state.resolve(b, Outcome.PLAYER_LOSE, 17, 20);
+			}
+			check(state.ledger.pending().size() == 11, "every player's payment is queued");
+			check(state.ledger.pending(Game.PAPER).size() + state.ledger.pending(Game.BLACKJACK).size() + state.ledger.pending(Game.ELY).size() == 11, "tabs split the queue");
 		});
 
 		context.setScreen(() -> new OverlayPreviewScreen());
-		for (Colors.Theme theme : Colors.Theme.values()) {
-			context.runOnClient(client -> DonutGambleClient.state.setTheme(theme));
-			context.waitTicks(3);
-			context.takeScreenshot("donutgamble-queue-" + theme.name().toLowerCase(java.util.Locale.ROOT));
-		}
 		context.runOnClient(client -> DonutGambleClient.state.setTheme(Colors.Theme.AQUA));
+		for (QueueOverlay.Tab tab : QueueOverlay.Tab.values()) {
+			context.runOnClient(client -> DonutGambleClient.state.config.activeTab = tab.name());
+			context.waitTicks(3);
+			context.takeScreenshot("donutgamble-tab-" + tab.name().toLowerCase(java.util.Locale.ROOT));
+		}
 
 		context.runOnClient(client -> client.setScreen(ScoreScreen.elytraPrice(DonutGambleClient.state, DonutGambleClient.state.ledger.pending().get(2))));
 		context.waitTicks(5);

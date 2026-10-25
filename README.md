@@ -4,7 +4,7 @@ A client-side Fabric mod for **Minecraft 1.21.11** that tracks gamble bets on Do
 while you stream. When someone `/pay`s you, the bet joins an on-screen queue. You click
 who won, and your profit updates live.
 
-![Queue](docs/screenshots/queue-aqua.png)
+![Paper tab](docs/screenshots/tab-paper.png)
 
 ## Install
 
@@ -15,35 +15,43 @@ who won, and your profit updates live.
 
 ## How it works
 
-Every `/pay` you receive joins the queue in the top-left. **#1 is the bet you're playing now.**
+The queue in the top-left has a tab for each game, plus **Owe** and **Stats**:
+
+| Tab | Shows |
+|---|---|
+| **Paper** / **BJ** / **Ely** | That game's queue and profit. **#1 is the bet you're playing now.** The number on the tab is how many are waiting. |
+| **Owe** | Everyone you still owe, the total, and which game they won. |
+| **Stats** | Profit, W-L-T and total bet for each game, this session and lifetime. Also **Color** and **New session**. |
 
 ```
-Profit +295M
-> 1 RazorBroGaming  $50m   Paper  W L T
-> 2 hayden260       $250m  BJ     W L T
-> 3 xNova           $120m  Ely    W L
-Owe Kira            1 Elytra            D
-Owe Alex_           $90m              P D
+Paper 6  BJ 1  Ely 4  Owe 2  Stats
+Paper profit +355M
+> 1 RazorBroGaming  $50m   W L T  →BJ
+> 2 hayden260       $250m  W L T  →BJ
 ```
 
-To click the letters, open chat (`T`) or press `Insert` to free the mouse.
+New payments go to the tab for the game guessed from the amount. If the tab you have open is
+empty, it jumps to the new bet's tab.
+
+To click tabs and letters, open chat (`T`) or press `Insert` to free the mouse.
 
 | Click | What it does |
 |---|---|
+| A tab | Switch to it. |
 | **W** / **L** / **T** | They won / lost / tied. Ties go to you. A small box then asks for the score (Them / Me). Press Enter to save or Skip. |
 | **W** on an Ely bet | They hit the item frame. Confirm the elytra price, and it's counted as your cost. |
-| **Paper / BJ / Ely** | Switch the game if the guess from the amount was wrong. |
-| **P** | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
-| **D** | Done: they've been paid, or their elytra is in their order. Money rows also clear on their own when you `/pay` them the exact amount. |
+| **→BJ** (etc.) | Move a bet to another game's tab if the guess was wrong. |
+| **P** (Owe tab) | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
+| **D** (Owe tab) | Done: they've been paid, or their elytra is in their order. Money rows also clear on their own when you `/pay` them the exact amount. |
 | Right-click a name | Remove a payment that wasn't a bet. |
-| Click **Profit** | Change the color (Aqua, Purple, Gold, Red, Lime, Pink, White). |
-| Right-click **Profit** | Start a new session (profit back to 0 for a new stream). |
+| **Color** (Stats tab) | Aqua, Purple, Gold, Red, Lime, Pink, White. |
+| **New session** (Stats tab) | Profit back to 0 for a new stream. Lifetime is kept. |
 
 | Key | What it does |
 |---|---|
 | `Insert` | Free the mouse to click the queue (press again to close) |
 | `H` | Show / hide the queue |
-| `]` / `[` | #1 in the queue won / lost (no score box) |
+| `]` / `[` | #1 in the open game tab won / lost (no score box) |
 
 Keys can be changed under **Options → Controls → Key Binds → Donut Gamble**.
 

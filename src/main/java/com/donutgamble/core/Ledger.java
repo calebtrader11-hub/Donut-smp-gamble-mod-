@@ -121,6 +121,17 @@ public class Ledger {
 		return stats(b -> b.timestamp >= sessionStart);
 	}
 
+	public Stats sessionStats(Game game) {
+		return stats(b -> b.timestamp >= sessionStart && b.game == game);
+	}
+
+	/** Queue for one game, oldest first. */
+	public List<Bet> pending(Game game) {
+		List<Bet> list = pending();
+		list.removeIf(b -> b.game != game);
+		return list;
+	}
+
 	public Stats lifetimeStats() {
 		return stats(b -> true);
 	}
@@ -130,18 +141,21 @@ public class Ledger {
 		long wagered = 0;
 		int wins = 0;
 		int losses = 0;
+		int ties = 0;
 		List<Bet> resolved = filterNewestFirst(b -> !b.isPending() && include.test(b));
 		for (Bet b : resolved) {
 			net += b.houseNet;
 			wagered += b.amount;
 			if (b.outcome == Outcome.PLAYER_WIN) {
 				wins++;
+			} else if (b.tie) {
+				ties++;
 			} else {
 				losses++;
 			}
 		}
 		List<Bet> recent = new ArrayList<>(resolved.subList(0, Math.min(RECENT, resolved.size())));
-		return new Stats(net, wagered, wins, losses, recent);
+		return new Stats(net, wagered, wins, losses, ties, recent);
 	}
 
 	private List<Bet> filterNewestFirst(Predicate<Bet> p) {

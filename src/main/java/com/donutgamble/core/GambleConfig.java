@@ -29,4 +29,6 @@ public class GambleConfig {
 	public String theme = "AQUA";
 
 	public Game lastGame = Game.PAPER;
+	/** Which tab the queue shows: PAPER, BLACKJACK, ELY, OWE or STATS. */
+	public String activeTab = "PAPER";
 }

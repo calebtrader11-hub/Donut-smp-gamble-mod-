@@ -113,6 +113,23 @@ class LedgerTest {
 	}
 
 	@Test
+	void perGameQueuesAndStats() {
+		Ledger l = ledger();
+		Bet p = l.addPayment("P", 10 * M, Game.PAPER, 2000);
+		l.addPayment("B", 200 * M, Game.BLACKJACK, 2001);
+		Bet t = l.addPayment("T", 30 * M, Game.PAPER, 2002);
+		assertEquals(2, l.pending(Game.PAPER).size());
+		assertEquals(1, l.pending(Game.BLACKJACK).size());
+		l.resolve(p.id, Outcome.PLAYER_LOSE, 1, 2, cfg);
+		l.resolveTie(t.id, 3, 3, cfg);
+		Stats paper = l.sessionStats(Game.PAPER);
+		assertEquals(40 * M, paper.net());
+		assertEquals(1, paper.playerLosses());
+		assertEquals(1, paper.ties());
+		assertEquals(0, l.sessionStats(Game.BLACKJACK).net());
+	}
+
+	@Test
 	void changeGameBeforeResolve() {
 		Ledger l = ledger();
 		Bet b = l.addPayment("S", 200 * M, Game.PAPER, 2000);
