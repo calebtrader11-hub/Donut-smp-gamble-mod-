@@ -15,9 +15,13 @@ package com.donutgamble.core;
  * @param showTop      how many bidders the HUD lists
  * @param showAmounts  show each bidder's total on the HUD
  * @param showShare    show each bidder's share of the pot on the HUD
+ * @param bidNotify    which bids pop up: ALL, LEADER or OFF
+ * @param hudCard      show the auction card on the HUD
+ * @param hudLeaderboard show the leaderboard on the HUD
  */
 public record AuctionSetup(String title, String itemId, String itemName, int quantity, String description, String stackData,
-	int durationSec, long prizeCost, Boolean autoEnd, Integer antiSnipeSec, int showTop, boolean showAmounts, boolean showShare) {
+	int durationSec, long prizeCost, Boolean autoEnd, Integer antiSnipeSec, int showTop, boolean showAmounts, boolean showShare,
+	String bidNotify, boolean hudCard, boolean hudLeaderboard) {
 
 	/** The name an auction is listed under. */
 	public String displayTitle() {
@@ -31,6 +35,6 @@ public record AuctionSetup(String title, String itemId, String itemName, int qua
 	}
 
 	public static AuctionSetup simple(String title, int durationSec, long prizeCost) {
-		return new AuctionSetup(title, "", "", 1, "", "", durationSec, prizeCost, null, null, 5, true, true);
+		return new AuctionSetup(title, "", "", 1, "", "", durationSec, prizeCost, null, null, 5, true, true, "ALL", true, true);
 	}
 }

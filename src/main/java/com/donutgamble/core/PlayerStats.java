@@ -8,7 +8,47 @@ import java.util.Map;
 
 /** Everything about one player across bets, payments and auctions. Names match case-insensitively. */
 public record PlayerStats(String player, int bets, int wins, int losses, int ties, long wagered, long houseNetFromBets,
-	long paidYou, long youPaid, long auctionTotal, int auctionsWon, long lastSeen) {
+	long paidYou, long youPaid, long auctionTotal, int auctionsWon, long lastSeen,
+	long outstanding, int elytrasOwed, int payments, int auctionsJoined) {
+
+	/** Ways to order (and narrow) the player list. */
+	public enum View {
+		RECENT("Recent"),
+		MOST_ACTIVE("Most active"),
+		BIGGEST("Biggest payers"),
+		OUTSTANDING("Owed money"),
+		AUCTIONS("Auction bidders");
+
+		public final String label;
+
+		View(String label) {
+			this.label = label;
+		}
+	}
+
+	/** Bets plus payments: how much they've been involved. */
+	public int activity() {
+		return bets + payments;
+	}
+
+	/** Players in the order (and subset) a view shows. The input list isn't changed. */
+	public static List<PlayerStats> view(List<PlayerStats> all, View view) {
+		List<PlayerStats> out = new ArrayList<>(all);
+		switch (view) {
+			case RECENT -> out.sort((a, b) -> Long.compare(b.lastSeen(), a.lastSeen()));
+			case MOST_ACTIVE -> out.sort((a, b) -> Integer.compare(b.activity(), a.activity()));
+			case BIGGEST -> out.sort((a, b) -> Long.compare(b.paidYou(), a.paidYou()));
+			case OUTSTANDING -> {
+				out.removeIf(p -> p.outstanding() <= 0 && p.elytrasOwed() == 0);
+				out.sort((a, b) -> Long.compare(b.outstanding(), a.outstanding()));
+			}
+			case AUCTIONS -> {
+				out.removeIf(p -> p.auctionsJoined() == 0);
+				out.sort((a, b) -> Long.compare(b.auctionTotal(), a.auctionTotal()));
+			}
+		}
+		return out;
+	}
 
 	/** Cash between you and them: what they paid you minus what you paid them. */
 	public long net() {
@@ -17,8 +57,8 @@ public record PlayerStats(String player, int bets, int wins, int losses, int tie
 
 	private static final class Acc {
 		String name;
-		int bets, wins, losses, ties, auctionsWon;
-		long wagered, houseNet, paidYou, youPaid, auctionTotal, lastSeen;
+		int bets, wins, losses, ties, auctionsWon, elytrasOwed, payments, auctionsJoined;
+		long wagered, houseNet, paidYou, youPaid, auctionTotal, lastSeen, outstanding;
 
 		void seen(long t) {
 			lastSeen = Math.max(lastSeen, t);
@@ -37,6 +77,13 @@ public record PlayerStats(String player, int bets, int wins, int losses, int tie
 				a.houseNet += b.houseNet;
 				if (b.outcome == Outcome.PLAYER_WIN) {
 					a.wins++;
+					if (!b.settled) {
+						if (b.payoutIsElytra()) {
+							a.elytrasOwed++;
+						} else {
+							a.outstanding += b.payout;
+						}
+					}
 				} else if (b.tie) {
 					a.ties++;
 				} else {
@@ -52,6 +99,7 @@ public record PlayerStats(String player, int bets, int wins, int losses, int tie
 			a.seen(t.timestamp);
 			if (t.type == Transaction.Type.INCOMING) {
 				a.paidYou += t.amount;
+				a.payments++;
 			} else {
 				a.youPaid += t.amount;
 			}
@@ -64,16 +112,20 @@ public record PlayerStats(String player, int bets, int wins, int losses, int tie
 			for (Standing s : auction.rankings()) {
 				Acc a = acc(map, s.player());
 				a.auctionTotal += s.total();
+				a.auctionsJoined++;
 				a.seen(auction.endedAt > 0 ? auction.endedAt : auction.startedAt);
 			}
 			if (auction.winner != null) {
 				acc(map, auction.winner).auctionsWon++;
 			}
 		}
+		for (Refund r : auctions.openRefunds()) {
+			acc(map, r.player).outstanding += r.amount;
+		}
 		List<PlayerStats> out = new ArrayList<>();
 		for (Acc a : map.values()) {
 			out.add(new PlayerStats(a.name, a.bets, a.wins, a.losses, a.ties, a.wagered, a.houseNet, a.paidYou, a.youPaid,
-				a.auctionTotal, a.auctionsWon, a.lastSeen));
+				a.auctionTotal, a.auctionsWon, a.lastSeen, a.outstanding, a.elytrasOwed, a.payments, a.auctionsJoined));
 		}
 		out.sort((x, y) -> Long.compare(y.lastSeen(), x.lastSeen()));
 		return out;

@@ -28,6 +28,15 @@ public final class Button extends ClickableWidget {
 	private final Runnable action;
 	private final Anim hover = new Anim(0);
 	private boolean selected;
+	private long pressedAt;
+	private Icons icon;
+
+	/** Shows a small icon before the label. */
+	public Button icon(Icons icon) {
+		this.icon = icon;
+		setWidth(getWidth() + 11);
+		return this;
+	}
 
 	public Button(int x, int y, int w, String label, Variant variant, Runnable action) {
 		super(x, y, w, HEIGHT, Text.literal(label));
@@ -86,13 +95,33 @@ public final class Button extends ClickableWidget {
 			border = Colors.alpha(border, 0x50);
 			ink = Colors.INK_FAINT;
 		}
-		Paint.card(ctx, getX(), getY(), getWidth(), getHeight(), Paint.RADIUS, fill, border);
+		float press = Math.max(0f, 1f - (System.currentTimeMillis() - pressedAt) / 160f);
+		if (press > 0) {
+			fill = Colors.mix(fill, 0xFFFFFFFF, 0.25f * press);
+		}
+		if (variant == Variant.PRIMARY && active) {
+			Paint.round(ctx, getX(), getY(), getWidth(), getHeight(), Paint.RADIUS, border);
+			Paint.roundGradient(ctx, getX(), getY(), getWidth(), getHeight(), Paint.RADIUS,
+				Colors.mix(fill, 0xFFFFFFFF, 0.12f), Colors.mix(fill, 0xFF000000, 0.08f));
+		} else {
+			Paint.card(ctx, getX(), getY(), getWidth(), getHeight(), Paint.RADIUS, fill, border);
+		}
 		TextRenderer tr = MinecraftClient.getInstance().textRenderer;
-		Paint.center(ctx, tr, getMessage().getString(), getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2 + 1, ink);
+		String label = getMessage().getString();
+		int ty = getY() + (getHeight() - 8) / 2 + 1 + (press > 0.5f ? 1 : 0);
+		if (icon != null) {
+			int total = 11 + tr.getWidth(label);
+			int ix = getX() + (getWidth() - total) / 2;
+			icon.draw(ctx, ix, ty, ink);
+			Paint.text(ctx, tr, label, ix + 11, ty, ink);
+		} else {
+			Paint.center(ctx, tr, label, getX() + getWidth() / 2, ty, ink);
+		}
 	}
 
 	@Override
 	public void onClick(Click click, boolean doubled) {
+		pressedAt = System.currentTimeMillis();
 		action.run();
 	}
 

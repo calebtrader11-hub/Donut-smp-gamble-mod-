@@ -33,6 +33,9 @@ public class AuctionManager {
 		a.showTop = Math.max(1, Math.min(10, setup.showTop()));
 		a.showAmounts = setup.showAmounts();
 		a.showShare = setup.showShare();
+		a.bidNotify = setup.bidNotify() == null ? "ALL" : setup.bidNotify();
+		a.hudCard = setup.hudCard();
+		a.hudLeaderboard = setup.hudLeaderboard();
 		a.durationMs = Math.max(1, setup.durationSec()) * 1000L;
 		a.start(now);
 		current = a;
@@ -147,13 +150,37 @@ public class AuctionManager {
 
 	/** You paid someone: clear the oldest open refund to them for exactly that amount. */
 	public boolean settleRefundByPayment(String player, long amount) {
+		return settleMatchingRefund(player, amount) != null;
+	}
+
+	/** Like {@link #settleRefundByPayment} but returns the refund that was paid, or null. */
+	public Refund settleMatchingRefund(String player, long amount) {
 		for (Refund r : openRefunds()) {
 			if (r.player.equalsIgnoreCase(player) && r.amount == amount) {
 				r.settled = true;
-				return true;
+				return r;
 			}
 		}
-		return false;
+		return null;
+	}
+
+	/** Completed-auction statistics since {@code since} (0 = all time). */
+	public AuctionStats stats(long since) {
+		int completed = 0;
+		long sum = 0;
+		Auction biggest = null;
+		for (Auction a : history) {
+			if (a.status != Auction.Status.ENDED || a.endedAt < since) {
+				continue;
+			}
+			completed++;
+			long t = a.total();
+			sum += t;
+			if (biggest == null || t > biggest.total()) {
+				biggest = a;
+			}
+		}
+		return new AuctionStats(completed, sum, completed == 0 ? 0 : sum / completed, biggest);
 	}
 
 	/** The live auction, or else the most recent finished one. */

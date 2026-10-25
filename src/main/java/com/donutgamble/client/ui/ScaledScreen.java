@@ -60,8 +60,15 @@ public abstract class ScaledScreen extends Screen {
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 		ctx.getMatrices().pushMatrix();
 		ctx.getMatrices().scale(factor, factor);
-		super.render(ctx, Math.round(mouseX / factor), Math.round(mouseY / factor), delta);
+		int mx = Math.round(mouseX / factor);
+		int my = Math.round(mouseY / factor);
+		super.render(ctx, mx, my, delta);
+		drawOverlay(ctx, mx, my, delta);
 		ctx.getMatrices().popMatrix();
+	}
+
+	/** Drawn after the widgets (popups, dialogs), in virtual coordinates. */
+	protected void drawOverlay(DrawContext ctx, int mouseX, int mouseY, float delta) {
 	}
 
 	private Click scaled(Click c) {

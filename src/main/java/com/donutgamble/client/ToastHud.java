@@ -1,8 +1,10 @@
 package com.donutgamble.client;
 
 import com.donutgamble.client.ui.Anim;
+import com.donutgamble.client.ui.Icons;
 import com.donutgamble.client.ui.Paint;
 import com.donutgamble.client.ui.Regions;
+import com.donutgamble.core.NotificationSettings.Kind;
 import com.donutgamble.core.PrivacySettings;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -54,13 +56,29 @@ final class ToastHud extends HudElement {
 		return new int[]{screenW - w - 6, screenH - h - 34};
 	}
 
+	/** Icon for each notification type. */
+	static Icons icon(Kind kind) {
+		return switch (kind) {
+			case PAYMENT_RECEIVED -> Icons.COIN;
+			case PAYMENT_SENT -> Icons.PAYMENTS;
+			case GAME_STARTED -> Icons.PLAY;
+			case GAME_COMPLETED -> Icons.CHECK;
+			case PAYOUT_DUE -> Icons.WARN;
+			case AUCTION_BID -> Icons.AUCTION;
+			case AUCTION_LEADER -> Icons.STAR;
+			case AUCTION_ENDING -> Icons.BELL;
+			case AUCTION_COMPLETED -> Icons.TROPHY;
+			case SYSTEM -> Icons.SETTINGS;
+		};
+	}
+
 	@Override
 	void draw(DrawContext ctx, TextRenderer tr, Regions regions, double mouseX, double mouseY, boolean editing) {
 		boolean hide = state.hides(PrivacySettings.Surface.TOASTS);
 		List<GambleState.Toast> toasts = state.activeToasts().stream().filter(t -> t.visibleText(hide) != null).toList();
 		if (editing && toasts.isEmpty()) {
-			toasts = List.of(new GambleState.Toast("+$50m jimbo01 → Paper", "+$50m jimbo01 → Paper", Colors.GREEN,
-				System.currentTimeMillis(), Long.MAX_VALUE, net.minecraft.item.ItemStack.EMPTY));
+			toasts = List.of(new GambleState.Toast(Kind.PAYMENT_RECEIVED, "+$50m jimbo01 → Paper", "+$50m jimbo01 → Paper",
+				Colors.GREEN, System.currentTimeMillis(), Long.MAX_VALUE, net.minecraft.item.ItemStack.EMPTY));
 		}
 		long now = System.currentTimeMillis();
 		int y = GambleState.MAX_TOASTS * ROW - ROW;
@@ -68,29 +86,30 @@ final class ToastHud extends HudElement {
 			GambleState.Toast t = toasts.get(i);
 			float in = Anim.ease((now - t.start()) / (float) SLIDE_MS);
 			float out = t.until() == Long.MAX_VALUE ? 1f : Anim.ease((t.until() - now) / (float) FADE_MS);
-			int alpha = Math.round(255 * Math.min(in, out));
-			if (alpha < 8) {
-				y -= ROW;
+			float f = Math.min(in, out);
+			if (f < 0.04f) {
+				// Still collapses its slot as it leaves so the stack closes up smoothly.
+				y -= Math.round(ROW * f);
 				continue;
 			}
-			boolean icon = !t.icon().isEmpty();
-			int pad = icon ? 22 : 11;
-			String text = Paint.fit(tr, t.visibleText(hide), W - pad - 6);
-			int w = tr.getWidth(text) + pad + 5;
+			int h = ROW - 3;
+			String text = Paint.fit(tr, t.visibleText(hide), W - 30);
+			int w = tr.getWidth(text) + 30;
 			int x = W - w + Math.round((1f - in) * 40);
-			Paint.card(ctx, x, y, w, ROW - 3, Paint.RADIUS, Colors.alpha(Colors.HUD, Math.round(0xE6 * alpha / 255f)),
-				Colors.alpha(t.color(), Math.round(0x90 * alpha / 255f)));
-			if (icon && alpha > 160) {
+			Paint.card(ctx, x, y, w, h, Paint.RADIUS, Colors.fade(0xF00B0D12, f), Colors.fade(Colors.LINE_HI, f));
+			ctx.fill(x + 1, y + 3, x + 2, y + h - 3, Colors.fade(t.color(), f));
+			if (!t.icon().isEmpty() && f > 0.6f) {
 				ctx.getMatrices().pushMatrix();
-				ctx.getMatrices().translate(x + 4, y + 1.5f);
+				ctx.getMatrices().translate(x + 5, y + 1.5f);
 				ctx.getMatrices().scale(0.75f, 0.75f);
 				ctx.drawItem(t.icon(), 0, 0);
 				ctx.getMatrices().popMatrix();
-			} else if (!icon) {
-				Paint.round(ctx, x + 4, y + 5, 3, 5, 1, Colors.alpha(t.color(), alpha));
+			} else {
+				Paint.round(ctx, x + 5, y + 1, 13, 13, 3, Colors.fade(Colors.alpha(t.color(), 0x30), f));
+				icon(t.kind()).draw(ctx, x + 7, y + 3, Colors.fade(t.color(), f));
 			}
-			Paint.hudText(ctx, tr, text, x + pad, y + 4, Colors.alpha(t.color(), Math.max(alpha, 30)));
-			y -= ROW;
+			Paint.hudText(ctx, tr, text, x + 23, y + 4, Colors.fade(Colors.INK, Math.max(f, 0.15f)));
+			y -= Math.round(ROW * Math.min(1f, in * 1.5f));
 		}
 	}
 }

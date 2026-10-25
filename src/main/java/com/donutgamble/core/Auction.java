@@ -33,6 +33,11 @@ public class Auction {
 	public int showTop = 5;
 	public boolean showAmounts = true;
 	public boolean showShare = true;
+	/** Which bids pop up: ALL, LEADER (only a new leader) or OFF. */
+	public String bidNotify = "ALL";
+	/** Show the auction card / leaderboard HUD components for this auction. */
+	public boolean hudCard = true;
+	public boolean hudLeaderboard = true;
 	/** What the prize costs you; counted as an expense when the auction ends with a winner. */
 	public long prizeCost;
 	public long startedAt;

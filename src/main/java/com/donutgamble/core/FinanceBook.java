@@ -47,6 +47,11 @@ public class FinanceBook {
 
 	/** Totals of everything recorded at or after {@code since} (0 = lifetime), voided entries excluded. */
 	public FinanceReport report(long since) {
+		return report(since, Long.MAX_VALUE);
+	}
+
+	/** Totals for {@code from <= time < to}, voided entries excluded. */
+	public FinanceReport report(long from, long to) {
 		long received = 0;
 		long paidOut = 0;
 		long expenses = 0;
@@ -54,7 +59,7 @@ public class FinanceBook {
 		int out = 0;
 		Map<Transaction.Source, Long> bySource = new EnumMap<>(Transaction.Source.class);
 		for (Transaction t : transactions) {
-			if (t.voided || t.timestamp < since) {
+			if (t.voided || t.timestamp < from || t.timestamp >= to) {
 				continue;
 			}
 			switch (t.type) {

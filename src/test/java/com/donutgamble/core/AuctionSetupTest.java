@@ -8,7 +8,7 @@ class AuctionSetupTest {
 	private static final long M = 1_000_000L;
 
 	private static AuctionSetup setup(String title, String itemName, int qty) {
-		return new AuctionSetup(title, "minecraft:spawner", itemName, qty, "Mined by hand", "", 120, 50 * M, false, 10, 3, false, true);
+		return new AuctionSetup(title, "minecraft:spawner", itemName, qty, "Mined by hand", "", 120, 50 * M, false, 10, 3, false, true, "LEADER", true, false);
 	}
 
 	@Test
@@ -31,6 +31,9 @@ class AuctionSetupTest {
 		assertEquals(3, a.showTop);
 		assertFalse(a.showAmounts);
 		assertTrue(a.summary().contains("Mined by hand"));
+		assertEquals("LEADER", a.bidNotify);
+		assertTrue(a.hudCard);
+		assertFalse(a.hudLeaderboard);
 	}
 
 	@Test

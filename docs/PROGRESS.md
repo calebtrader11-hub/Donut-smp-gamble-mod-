@@ -113,3 +113,36 @@ Already sound (kept as is): payment detection is anchored (no chat spoofing), am
 ### Not verified
 - Inventory picking and categories in a real world (the test machine can't load one); the item
   component round-trip (custom name + enchantment) is tested.
+
+## Complete UI/UX overhaul (third pass)
+
+### Audit of the UI before this pass
+| # | Finding |
+|---|---|
+| U1 | `ManagerScreen` is one 1,260-line class: layout, drawing, input and every page together. Pages can't be reworked independently and helpers can't be reused by other screens. |
+| U2 | Only buttons, text boxes and toggles exist. No dropdown, slider, segmented control, confirm dialog or icon set, so screens fall back to rows of text. |
+| U3 | Critical actions (End, Cancel auction, New session, Reset layout) run on one click with no confirmation. |
+| U4 | Flat surfaces: no gradients or section headers; pages switch instantly; no press feedback. |
+| U5 | Dashboard is fixed: four tiles, two cards and a list; no auction statistics, quick actions or customization. |
+| U6 | HUD components have position/scale/visibility only: no opacity, accent, compact/expanded or presets, and per-game queues can't be placed separately. |
+| U7 | Leaderboards re-sort instantly; the auction just disappears when it ends (no results). |
+| U8 | Notifications have one style and one duration; no types, per-type switches, sounds or preview. |
+| U9 | Players: no notes, tags, UUID, outstanding balance, sorting or filters. Payments: no status or link to the game/auction they belong to. |
+| U10 | Finance: totals only. No date ranges, charts, per-game or auction statistics. |
+| U11 | Settings: one page mixing everything; no import/export. |
+| U12 | Rankings, owed rows and player stats are rebuilt several times per frame. |
+
+### Plan
+1. Core: player directory (notes, tags, UUID), finance series by day, auction statistics,
+   notification settings, HUD slot style, dashboard card list, auction bid-notify/HUD options.
+2. Design system v2: palette, gradients, icons, Slider, Dropdown, Segmented, confirm dialogs,
+   page transitions (`AppScreen`).
+3. Manager split into pages on the new system; dashboard cards, players, payments, finance
+   analytics with charts and date filters, settings categories with import/export.
+4. Auction setup v2, live ranking animations, ending-soon and new-leader notices, results card,
+   bid history, confirmations.
+5. HUD: per-game queue components, game activity, session; style per component; editor v2 with
+   inspector, presets and saved layouts.
+6. Notifications v2: types, per-type switches, duration, sounds, preview.
+7. Per-frame caches for rankings/owed/stats.
+8. Tests, multi-scale screenshots, Streamer audit, docs.

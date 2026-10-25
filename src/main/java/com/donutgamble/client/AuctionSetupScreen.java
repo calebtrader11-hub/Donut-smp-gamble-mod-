@@ -170,7 +170,7 @@ final class AuctionSetupScreen extends ScaledScreen {
 		return new AuctionSetup(DRAFT.title, hasItem ? ItemIcons.id(DRAFT.prize) : "", hasItem ? ItemIcons.name(DRAFT.prize) : "", qty,
 			DRAFT.description, stackData == null ? "" : stackData,
 			ManagerScreen.parseDuration(DRAFT.duration, state.config.auctionDefaultDurationSec),
-			AmountParser.parseOrZero(DRAFT.cost), DRAFT.autoEnd, snipe, DRAFT.showTop, DRAFT.showAmounts, DRAFT.showShare);
+			AmountParser.parseOrZero(DRAFT.cost), DRAFT.autoEnd, snipe, DRAFT.showTop, DRAFT.showAmounts, DRAFT.showShare, "ALL", true, true);
 	}
 
 	private void start() {

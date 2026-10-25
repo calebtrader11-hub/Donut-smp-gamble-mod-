@@ -4,6 +4,7 @@ import com.donutgamble.core.AuctionManager;
 import com.donutgamble.core.FinanceBook;
 import com.donutgamble.core.GambleConfig;
 import com.donutgamble.core.Ledger;
+import com.donutgamble.core.PlayerDirectory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
@@ -39,7 +40,7 @@ import java.util.stream.Stream;
  */
 final class Storage {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	private static final String[] FILES = {"config.json", "ledger.json", "finance.json", "auctions.json"};
+	private static final String[] FILES = {"config.json", "ledger.json", "finance.json", "auctions.json", "players.json"};
 	private static final int KEEP_BACKUPS = 7;
 	private static final long DEBOUNCE_MS = 400;
 
@@ -78,9 +79,15 @@ final class Storage {
 		return a != null ? a : new AuctionManager();
 	}
 
+	PlayerDirectory loadPlayers() {
+		PlayerDirectory d = read("players.json", PlayerDirectory.class);
+		return d != null ? d : new PlayerDirectory();
+	}
+
 	/** Queues a save of everything; written ~0.4 s later on the save thread. */
-	void save(GambleConfig cfg, Ledger ledger, FinanceBook finance, AuctionManager auctions) {
+	void save(GambleConfig cfg, Ledger ledger, FinanceBook finance, AuctionManager auctions, PlayerDirectory players) {
 		Map<String, String> snapshot = new LinkedHashMap<>();
+		snapshot.put("players.json", GSON.toJson(players));
 		snapshot.put("config.json", GSON.toJson(cfg));
 		snapshot.put("ledger.json", GSON.toJson(ledger));
 		snapshot.put("finance.json", GSON.toJson(finance));
@@ -257,5 +264,16 @@ final class Storage {
 
 	static String toJson(Object value) {
 		return GSON.toJson(value);
+	}
+
+	/** Where settings are imported from. */
+	Path importFile() {
+		return dir.resolve("import").resolve("settings.json");
+	}
+
+	/** Reads settings exported earlier (dropped into import/settings.json); null if missing or unreadable. */
+	GambleConfig readImport() {
+		Path file = importFile();
+		return Files.exists(file) ? parse(file, GambleConfig.class) : null;
 	}
 }

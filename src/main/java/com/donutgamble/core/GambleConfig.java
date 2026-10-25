@@ -71,6 +71,16 @@ public class GambleConfig {
 	/** Small pop-up for each payment and auction event. */
 	public boolean notifications = true;
 
+	/** Which notifications show, for how long, and with sound. */
+	public NotificationSettings notices = new NotificationSettings();
+	/** Dashboard cards in display order; missing ids are hidden. */
+	public List<String> dashboardCards = new ArrayList<>(List.of(
+		"LIVE_AUCTION", "SESSION", "QUICK_ACTIONS", "GAMES", "PAYOUTS", "RECENT_PAYMENTS", "LIFETIME", "AUCTION_STATS"));
+	/** Defaults for new auctions. */
+	public String auctionBidNotify = "ALL";
+	/** Announce "ending soon" at this many seconds left (0 = off). */
+	public int auctionEndingSoonSec = 30;
+
 	/** Streamer Mode and what it hides. */
 	public PrivacySettings privacy = new PrivacySettings();
 	/** Item ids picked for recent auctions, newest first (max 16). */

@@ -42,6 +42,45 @@ public final class Paint {
 		ctx.fill(x, y + r, x + w, y + h - r, color);
 	}
 
+	/** Rounded rectangle filled with a vertical gradient (top color to bottom color). */
+	public static void roundGradient(DrawContext ctx, int x, int y, int w, int h, int r, int top, int bottom) {
+		if (w <= 0 || h <= 0) {
+			return;
+		}
+		r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+		for (int i = 0; i < h; i++) {
+			int inset = 0;
+			int fromEdge = Math.min(i, h - 1 - i);
+			if (fromEdge < r) {
+				double dy = r - fromEdge - 0.5;
+				inset = r - (int) Math.round(Math.sqrt(r * r - dy * dy));
+			}
+			int color = Colors.mix(top, bottom, h <= 1 ? 0 : i / (float) (h - 1));
+			ctx.fill(x + inset, y + i, x + w - inset, y + i + 1, color);
+		}
+	}
+
+	/** A raised panel: soft top-to-bottom gradient, hairline border and a faint top highlight. */
+	public static void panel(DrawContext ctx, int x, int y, int w, int h) {
+		round(ctx, x, y, w, h, 4, Colors.LINE);
+		roundGradient(ctx, x + 1, y + 1, w - 2, h - 2, 3, Colors.CARD_TOP, Colors.CARD);
+		ctx.fill(x + 4, y + 1, x + w - 4, y + 2, Colors.alpha(0xFFFFFFFF, 0x0A));
+	}
+
+	/** Small rounded label with a tinted background; returns its width. */
+	public static int badge(DrawContext ctx, TextRenderer tr, String s, int x, int y, int color) {
+		int w = tr.getWidth(s) + 8;
+		pill(ctx, x, y, w, 11, Colors.alpha(color, 0x33));
+		text(ctx, tr, s, x + 4, y + 2, color);
+		return w;
+	}
+
+	/** Icon in a rounded tinted square (size 14). */
+	public static void iconChip(DrawContext ctx, Icons icon, int x, int y, int color) {
+		round(ctx, x, y, 14, 14, 3, Colors.alpha(color, 0x26));
+		icon.draw(ctx, x + 3, y + 3, color);
+	}
+
 	/** Rounded rectangle with a 1px border. */
 	public static void card(DrawContext ctx, int x, int y, int w, int h, int r, int fill, int border) {
 		round(ctx, x, y, w, h, r, border);
@@ -55,10 +94,13 @@ public final class Paint {
 		}
 	}
 
-	/** Window: shadow, surface and hairline border. */
+	/** Window: shadow, charcoal gradient surface, hairline border and a faint accent glow at the top. */
 	public static void window(DrawContext ctx, int x, int y, int w, int h) {
-		shadow(ctx, x, y, w, h, 5);
-		card(ctx, x, y, w, h, 5, Colors.WINDOW, Colors.LINE_HI);
+		shadow(ctx, x, y, w, h, 6);
+		round(ctx, x, y, w, h, 6, Colors.LINE_HI);
+		roundGradient(ctx, x + 1, y + 1, w - 2, h - 2, 5, Colors.WINDOW, Colors.WINDOW_LOW);
+		ctx.fillGradient(x + 6, y + 1, x + w - 6, y + 22, Colors.alpha(Colors.accent(), 0x14), Colors.alpha(Colors.accent(), 0x00));
+		ctx.fill(x + 6, y + 1, x + w - 6, y + 2, Colors.alpha(Colors.accent(), 0x40));
 	}
 
 	/** HUD panel: translucent surface with an accent hairline. */

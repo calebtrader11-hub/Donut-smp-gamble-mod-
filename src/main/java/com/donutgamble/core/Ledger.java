@@ -90,13 +90,18 @@ public class Ledger {
 
 	/** You paid someone: clear the oldest money payout owed to them for exactly that amount. */
 	public boolean settleByPayment(String player, long amount) {
+		return settleMatching(player, amount) != null;
+	}
+
+	/** Like {@link #settleByPayment} but returns the bet that was paid, or null if none matched exactly. */
+	public Bet settleMatching(String player, long amount) {
 		for (Bet b : owed()) {
 			if (!b.payoutIsElytra() && b.player.equalsIgnoreCase(player) && b.payout == amount) {
 				b.settled = true;
-				return true;
+				return b;
 			}
 		}
-		return false;
+		return null;
 	}
 
 	public void remove(long id) {
@@ -130,6 +135,11 @@ public class Ledger {
 		List<Bet> list = pending();
 		list.removeIf(b -> b.game != game);
 		return list;
+	}
+
+	/** Results for one game (null = all games) for bets placed in {@code from <= time < to}. */
+	public Stats stats(Game game, long from, long to) {
+		return stats(b -> b.timestamp >= from && b.timestamp < to && (game == null || b.game == game));
 	}
 
 	public Stats lifetimeStats() {
