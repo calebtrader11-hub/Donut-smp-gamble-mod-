@@ -31,8 +31,18 @@ final class RankingView {
 	}
 
 	private final Map<String, Row> rows = new HashMap<>();
+	/** HUD mode: text with a shadow, readable over the world. */
+	private final boolean hud;
 	private Object source;
 	private int frame;
+
+	RankingView() {
+		this(false);
+	}
+
+	RankingView(boolean hud) {
+		this.hud = hud;
+	}
 
 	/** Forget positions when switching to another auction, so rows don't fly in from the old one. */
 	void reset(Object auction) {
@@ -77,7 +87,7 @@ final class RankingView {
 		rows.values().removeIf(row -> row.frame != current);
 	}
 
-	private static void drawRow(DrawContext ctx, TextRenderer tr, int i, Standing s, int x, int y, int w, int h, float a,
+	private void drawRow(DrawContext ctx, TextRenderer tr, int i, Standing s, int x, int y, int w, int h, float a,
 			float share, long sinceFlash, boolean amounts, boolean shares) {
 		int medal = i == 0 ? Colors.GOLD : i == 1 ? Colors.GREY : i == 2 ? 0xFFD08A5B : Colors.INK_FAINT;
 		if (sinceFlash < 900) {
@@ -92,19 +102,27 @@ final class RankingView {
 		if (i < 3) {
 			Paint.round(ctx, x + 5, ty - 1, 13, 10, 3, Colors.fade(Colors.alpha(medal, 0x38), a));
 		}
-		Paint.center(ctx, tr, Integer.toString(i + 1), x + 12, ty, Colors.fade(medal, a));
+		text(ctx, tr, Integer.toString(i + 1), x + 12 - tr.getWidth(Integer.toString(i + 1)) / 2, ty, Colors.fade(medal, a));
 		int nameColor = i == 0 ? Colors.GOLD : Colors.INK;
 		int right = x + w - 6;
 		if (shares) {
 			String pct = Math.round(s.share() * 100) + "%";
-			Paint.right(ctx, tr, pct, right, ty, Colors.fade(Colors.INK_DIM, a));
+			text(ctx, tr, pct, right - tr.getWidth(pct), ty, Colors.fade(Colors.INK_DIM, a));
 			right -= 32;
 		}
 		if (amounts) {
 			String money = Fmt.money(s.total());
-			Paint.right(ctx, tr, money, right, ty, Colors.fade(Colors.INK, a));
+			text(ctx, tr, money, right - tr.getWidth(money), ty, Colors.fade(Colors.INK, a));
 			right -= tr.getWidth(money) + 8;
 		}
-		Paint.text(ctx, tr, Paint.fit(tr, s.player(), right - (x + 24)), x + 24, ty, Colors.fade(nameColor, a));
+		text(ctx, tr, Paint.fit(tr, s.player(), right - (x + 24)), x + 24, ty, Colors.fade(nameColor, a));
+	}
+
+	private void text(DrawContext ctx, TextRenderer tr, String s, int x, int y, int color) {
+		if (hud) {
+			Paint.hudText(ctx, tr, s, x, y, color);
+		} else {
+			Paint.text(ctx, tr, s, x, y, color);
+		}
 	}
 }

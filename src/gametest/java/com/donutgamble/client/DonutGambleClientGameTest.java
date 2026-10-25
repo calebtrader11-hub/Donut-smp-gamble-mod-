@@ -152,6 +152,45 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		});
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-hud-editor");
+		// Select the queue: the inspector opens next to it.
+		context.runOnClient(client -> {
+			HudEditorScreen.selectedId = "queue";
+			client.setScreen(new HudEditorScreen(DonutGambleClient.hud, null));
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-hud-editor-inspector");
+		context.runOnClient(client -> {
+			HudEditorScreen.selectedId = null;
+			GambleState state = DonutGambleClient.state;
+			HudManager hud = DonutGambleClient.hud;
+			var layout = state.config.hud;
+			layout.saveAs("Mine");
+			hud.applyPreset("Competitive");
+			check(layout.slots.get("queue.paper").visible && layout.slots.get("activity").visible, "competitive shows a queue per game");
+			check(!layout.slots.get("queue").visible, "competitive hides the tabbed queue");
+			check(layout.slots.get("queue.blackjack").y > layout.slots.get("queue.paper").y, "presets stack components without overlap");
+		});
+		context.setScreen(() -> new OverlayPreviewScreen());
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-hud-preset-competitive");
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			var layout = state.config.hud;
+			DonutGambleClient.hud.applyPreset("Minimal");
+			check(layout.slots.get("queue").compact, "minimal is compact");
+			var q = layout.slots.get("queue");
+			q.compact = false;
+			q.opacity = 0.5f;
+			q.accent = "GOLD";
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-hud-styled");
+		context.runOnClient(client -> {
+			var layout = DonutGambleClient.state.config.hud;
+			check(layout.load("Mine"), "saved layout loads");
+			check(layout.slots.get("queue").visible && layout.slots.get("queue").opacity == 1f, "saved layout restored as it was");
+			DonutGambleClient.state.save();
+		});
 		context.setScreen(() -> null);
 
 		runAuction(context);
@@ -207,6 +246,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			state.endAuction();
 			Auction ended = state.auctions.history.get(state.auctions.history.size() - 1);
 			check(ended.winner.equals("RazorBroGaming"), "winner");
+			check(state.recentResult() == ended, "results card shows the auction that just ended");
 			check(state.auctions.openRefunds().size() == 3, "losers are owed refunds");
 			check(state.finance.report(0).expenses() == expensesBefore + 250 * M, "prize cost is an expense");
 

@@ -103,9 +103,26 @@ public final class Paint {
 		ctx.fill(x + 6, y + 1, x + w - 6, y + 2, Colors.alpha(Colors.accent(), 0x40));
 	}
 
-	/** HUD panel: translucent surface with an accent hairline. */
+	/** Background opacity of the HUD component being drawn (its style setting), 0.2 to 1. */
+	public static float hudOpacity = 1f;
+
+	/** HUD panel: translucent surface with an accent hairline, faded by {@link #hudOpacity}. */
 	public static void hud(DrawContext ctx, int x, int y, int w, int h) {
-		card(ctx, x, y, w, h, RADIUS, Colors.HUD, Colors.alpha(Colors.accent(), 0xC0));
+		// Fill and outline are drawn separately so a see-through panel doesn't show the border color through it.
+		round(ctx, x + 1, y + 1, w - 2, h - 2, RADIUS - 1, Colors.fade(Colors.mix(Colors.HUD, Colors.alpha(Colors.accent(), 0xC0), 0.12f), hudOpacity));
+		outline(ctx, x, y, w, h, Colors.fade(Colors.alpha(Colors.accent(), 0xC0), Math.min(1f, 0.35f + hudOpacity)));
+	}
+
+	/** 1px rounded outline (radius 3) with nothing inside. */
+	public static void outline(DrawContext ctx, int x, int y, int w, int h, int color) {
+		ctx.fill(x + 2, y, x + w - 2, y + 1, color);
+		ctx.fill(x + 2, y + h - 1, x + w - 2, y + h, color);
+		ctx.fill(x, y + 2, x + 1, y + h - 2, color);
+		ctx.fill(x + w - 1, y + 2, x + w, y + h - 2, color);
+		ctx.fill(x + 1, y + 1, x + 2, y + 2, color);
+		ctx.fill(x + w - 2, y + 1, x + w - 1, y + 2, color);
+		ctx.fill(x + 1, y + h - 2, x + 2, y + h - 1, color);
+		ctx.fill(x + w - 2, y + h - 2, x + w - 1, y + h - 1, color);
 	}
 
 	public static void pill(DrawContext ctx, int x, int y, int w, int h, int color) {

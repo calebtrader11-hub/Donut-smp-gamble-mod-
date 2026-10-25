@@ -51,6 +51,7 @@ public class Ledger {
 			return;
 		}
 		b.outcome = outcome;
+		b.resolvedAt = System.currentTimeMillis();
 		b.scoreThem = them;
 		b.scoreMe = me;
 		if (outcome == Outcome.PLAYER_WIN) {
@@ -140,6 +141,13 @@ public class Ledger {
 	/** Results for one game (null = all games) for bets placed in {@code from <= time < to}. */
 	public Stats stats(Game game, long from, long to) {
 		return stats(b -> b.timestamp >= from && b.timestamp < to && (game == null || b.game == game));
+	}
+
+	/** Results called since {@code since}, most recent first (by when they were called). */
+	public List<Bet> recentResults(long since, int limit) {
+		List<Bet> list = filterNewestFirst(b -> !b.isPending() && Math.max(b.resolvedAt, b.timestamp) >= since);
+		list.sort((a, b) -> Long.compare(Math.max(b.resolvedAt, b.timestamp), Math.max(a.resolvedAt, a.timestamp)));
+		return list.size() > limit ? new ArrayList<>(list.subList(0, limit)) : list;
 	}
 
 	public Stats lifetimeStats() {

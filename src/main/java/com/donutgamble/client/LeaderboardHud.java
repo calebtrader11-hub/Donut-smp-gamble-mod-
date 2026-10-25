@@ -23,9 +23,15 @@ final class LeaderboardHud extends HudElement {
 		this.state = state;
 	}
 
+	private final RankingView ranking = new RankingView(true);
+
 	@Override
 	boolean hasContent() {
-		return state.auctions.isLive() && !state.auctions.current.rankings().isEmpty();
+		return state.auctions.isLive() && state.auctions.current.hudLeaderboard && !state.auctions.current.rankings().isEmpty();
+	}
+
+	private int top(Auction a) {
+		return compact ? Math.min(3, a.showTop) : a.showTop;
 	}
 
 	private int rows(boolean editing) {
@@ -33,7 +39,7 @@ final class LeaderboardHud extends HudElement {
 		if (a == null) {
 			return editing ? SAMPLE.length : 0;
 		}
-		return Math.max(1, Math.min(a.showTop, a.rankings().size()));
+		return Math.max(1, Math.min(top(a), a.rankings().size()));
 	}
 
 	@Override
@@ -62,11 +68,9 @@ final class LeaderboardHud extends HudElement {
 		}
 		boolean amounts = a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
 		List<Standing> ranks = a.rankings();
-		for (int i = 0; i < Math.min(a.showTop, ranks.size()); i++) {
-			Standing s = ranks.get(i);
-			row(ctx, tr, i, s.player(), amounts ? Fmt.money(s.total()) : null, a.showShare ? (float) s.share() : -1, y, false);
-			y += ROW;
-		}
+		// Rows glide to their new place when someone overtakes.
+		ranking.reset(a);
+		ranking.draw(ctx, tr, ranks, 3, y - 2, W - 6, ROW, 0, top(a), amounts, a.showShare);
 	}
 
 	private void row(DrawContext ctx, TextRenderer tr, int i, String name, String amount, float share, int y, boolean sample) {

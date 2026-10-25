@@ -8,14 +8,15 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 
 /**
- * Session profit at a glance (off by default; turn it on in the HUD editor). Private: while
- * Streamer Mode hides finance it isn't drawn at all; the editor shows an empty placeholder.
+ * Session at a glance: how long it's been running, games played and the result count, plus the
+ * house net. Off by default. While Streamer Mode hides finance, money isn't drawn; the public part
+ * (time, games, W/L/T) still is.
  */
 final class ProfitHud extends HudElement {
 	private final GambleState state;
 
 	ProfitHud(GambleState state) {
-		super("profit", "Session profit");
+		super("profit", "Session");
 		this.state = state;
 	}
 
@@ -28,44 +29,47 @@ final class ProfitHud extends HudElement {
 		return state.hides(PrivacySettings.Surface.FINANCE);
 	}
 
-	@Override
-	boolean hasContent() {
-		return !hidden();
+	private static String counts(Stats s) {
+		int games = s.playerWins() + s.playerLosses() + s.ties();
+		return games + (games == 1 ? " game" : " games") + " · W " + s.playerWins() + " · L " + s.playerLosses() + " · T " + s.ties();
+	}
+
+	private String clock() {
+		return Fmt.duration(System.currentTimeMillis() - state.ledger.sessionStart);
 	}
 
 	@Override
 	int[] size(TextRenderer tr, boolean editing) {
-		if (hidden()) {
-			return new int[]{120, 40};
-		}
 		Stats s = state.ledger.sessionStats();
-		int w = Math.max(tr.getWidth(Fmt.signed(s.net())) * 2, tr.getWidth(detail(s))) + 12;
-		return new int[]{Math.max(w, 90), 40};
-	}
-
-	private static String detail(Stats s) {
-		return "W " + s.playerWins() + " · L " + s.playerLosses() + " · T " + s.ties() + " · " + Fmt.money(s.wagered()) + " bet";
+		int head = tr.getWidth("SESSION  " + clock());
+		if (hidden()) {
+			return new int[]{Math.max(head, tr.getWidth(counts(s))) + 12, compact ? 28 : 30};
+		}
+		String detail = counts(s) + " · " + Fmt.money(s.wagered()) + " bet";
+		int w = Math.max(head, Math.max(tr.getWidth(Fmt.signed(s.net())) * 2, compact ? 0 : tr.getWidth(detail))) + 12;
+		return new int[]{Math.max(w, 96), compact ? 32 : 42};
 	}
 
 	@Override
 	int[] defaultPosition(int screenW, int screenH, int w, int h) {
-		return new int[]{(screenW - w) / 2, 6};
+		return new int[]{screenW - w - 6, Math.max(6, screenH / 2 - h / 2)};
 	}
 
 	@Override
 	void draw(DrawContext ctx, TextRenderer tr, Regions regions, double mouseX, double mouseY, boolean editing) {
 		int[] size = size(tr, editing);
-		if (hidden()) {
-			// Only reachable in the editor; no figures are drawn.
-			Paint.hud(ctx, 0, 0, size[0], size[1]);
-			Paint.hudText(ctx, tr, "SESSION", 6, 5, Colors.muted());
-			Paint.hudText(ctx, tr, "Hidden in Streamer Mode", 6, 20, Colors.muted());
-			return;
-		}
 		Stats s = state.ledger.sessionStats();
 		Paint.hud(ctx, 0, 0, size[0], size[1]);
 		Paint.hudText(ctx, tr, "SESSION", 6, 5, Colors.muted());
-		Paint.big(ctx, tr, Fmt.signed(s.net()), 6, 14, 2, Colors.profit(s.net()), true);
-		Paint.hudText(ctx, tr, detail(s), 6, 30, Colors.text());
+		String clock = clock();
+		Paint.hudText(ctx, tr, clock, size[0] - 6 - tr.getWidth(clock), 5, Colors.muted());
+		if (hidden()) {
+			Paint.hudText(ctx, tr, counts(s), 6, 17, Colors.text());
+			return;
+		}
+		Paint.big(ctx, tr, Fmt.signed(s.net()), 6, 15, 2, Colors.profit(s.net()), true);
+		if (!compact) {
+			Paint.hudText(ctx, tr, counts(s) + " · " + Fmt.money(s.wagered()) + " bet", 6, 32, Colors.text());
+		}
 	}
 }

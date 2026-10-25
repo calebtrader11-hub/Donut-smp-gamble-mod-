@@ -83,14 +83,38 @@ final class QueueHud extends HudElement {
 	private Regions regions;
 	private double mx, my;
 
+	/** Set for a single-game component (its own position and style); null for the tabbed queue. */
+	private final Tab fixed;
+
 	QueueHud(GambleState state) {
-		super("queue", "Queue");
+		this(state, null);
+	}
+
+	/** A queue for one game only, e.g. the Paper queue on its own. */
+	QueueHud(GambleState state, Tab fixed) {
+		super(fixed == null ? "queue" : "queue." + fixed.name().toLowerCase(java.util.Locale.ROOT),
+			fixed == null ? "Queue" : fixed.game.displayName + " queue");
 		this.state = state;
+		this.fixed = fixed;
+	}
+
+	@Override
+	boolean visibleByDefault() {
+		return fixed == null;
+	}
+
+	private int maxRows() {
+		return compact ? 5 : MAX_ROWS;
+	}
+
+	@Override
+	boolean hasContent() {
+		return fixed == null || !state.ledger.pending(fixed.game).isEmpty();
 	}
 
 	@Override
 	int[] defaultPosition(int screenW, int screenH, int w, int h) {
-		return new int[]{6, 6};
+		return new int[]{6, fixed == null ? 6 : 6 + 60 * (fixed.ordinal() + 1)};
 	}
 
 	/** Streamer Mode hides per-game profit, the Stats tab and the total owed. */
@@ -99,6 +123,9 @@ final class QueueHud extends HudElement {
 	}
 
 	private List<Tab> tabs() {
+		if (fixed != null) {
+			return List.of(fixed);
+		}
 		List<Tab> list = new ArrayList<>(List.of(Tab.values()));
 		if (hideMoney()) {
 			list.remove(Tab.STATS);
@@ -107,11 +134,17 @@ final class QueueHud extends HudElement {
 	}
 
 	Tab tab() {
+		if (fixed != null) {
+			return fixed;
+		}
 		Tab t = Tab.parse(state.config.activeTab);
 		return tabs().contains(t) ? t : Tab.PAPER;
 	}
 
 	private void setTab(Tab t) {
+		if (fixed != null) {
+			return;
+		}
 		state.config.activeTab = t.name();
 		state.save();
 	}
@@ -152,7 +185,7 @@ final class QueueHud extends HudElement {
 			return 2 + Math.max(1, Math.min(top, ranks)) + (ranks > top ? 1 : 0) + 1;
 		}
 		List<?> list = tab == Tab.OWE ? oweRows() : state.ledger.pending(tab.game);
-		int shown = Math.min(MAX_ROWS, list.size());
+		int shown = Math.min(maxRows(), list.size());
 		return 1 + Math.max(1, shown) + (list.size() > shown ? 1 : 0);
 	}
 
@@ -176,12 +209,12 @@ final class QueueHud extends HudElement {
 		}
 		if (tab == Tab.OWE) {
 			List<OweRow> owed = oweRows();
-			List<OweRow> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
+			List<OweRow> shown = owed.subList(0, Math.min(maxRows(), owed.size()));
 			int w = tr.getWidth(oweHeader()) + 2 * PAD;
 			return shown.isEmpty() ? w : Math.max(w, oweColumns(tr, shown)[2] + 2 * LETTER + PAD - 2);
 		}
 		List<Bet> queue = state.ledger.pending(tab.game);
-		List<Bet> shown = queue.subList(0, Math.min(MAX_ROWS, queue.size()));
+		List<Bet> shown = queue.subList(0, Math.min(maxRows(), queue.size()));
 		int w = tr.getWidth("Waiting for /pay…") + 2 * PAD;
 		return shown.isEmpty() ? w : Math.max(w, gameColumns(tr, shown)[2] + tr.getWidth("→Paper") + PAD);
 	}
@@ -273,7 +306,7 @@ final class QueueHud extends HudElement {
 
 	private void drawGame(Game game, int y) {
 		List<Bet> queue = state.ledger.pending(game);
-		List<Bet> shown = queue.subList(0, Math.min(MAX_ROWS, queue.size()));
+		List<Bet> shown = queue.subList(0, Math.min(maxRows(), queue.size()));
 		if (hideMoney()) {
 			Paint.hudText(ctx, tr, game.displayName + " · " + queue.size() + " waiting", PAD, y, Colors.muted());
 		} else {
@@ -458,7 +491,7 @@ final class QueueHud extends HudElement {
 
 	private void drawOwe(int y) {
 		List<OweRow> owed = oweRows();
-		List<OweRow> shown = owed.subList(0, Math.min(MAX_ROWS, owed.size()));
+		List<OweRow> shown = owed.subList(0, Math.min(maxRows(), owed.size()));
 		Paint.hudText(ctx, tr, oweHeader(), PAD, y, Colors.text());
 		y += ROW;
 		if (shown.isEmpty()) {

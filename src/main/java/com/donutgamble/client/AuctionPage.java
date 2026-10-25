@@ -163,13 +163,16 @@ final class AuctionPage extends ManagerPage {
 		Paint.bar(ctx, cx + 8, cy + 66, cw - 16, 3, frac, Colors.LINE, paused ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.accent());
 
 		int sx = cx + Math.max(110, cw / 2 - 30);
-		int colW = (cx + cw - 8 - sx) / 4;
+		int cols = cw >= 400 ? 4 : 3;
+		int colW = (cx + cw - 8 - sx) / cols;
 		Standing leader = a.leader();
 		List<Standing> r = a.rankings();
 		m.stat(sx, cy + 41, colW - 4, "Collected", Fmt.money(a.total()), Colors.GREEN, !amounts);
 		m.stat(sx + colW, cy + 41, colW - 4, "Leader", leader == null ? "-" : leader.player(), Colors.GOLD, false);
 		m.stat(sx + 2 * colW, cy + 41, colW - 4, "Bidders", Integer.toString(r.size()), Colors.INK, false);
-		m.stat(sx + 3 * colW, cy + 41, colW - 4, "Ends", paused ? "paused" : ManagerScreen.shortTime(now + left), Colors.INK_DIM, false);
+		if (cols == 4) {
+			m.stat(sx + 3 * colW, cy + 41, colW - 4, "Ends", paused ? "paused" : ManagerScreen.shortTime(now + left), Colors.INK_DIM, false);
+		}
 
 		m.text("Fix", cx, cy + ch - 12, Colors.INK_DIM);
 		int hudX = cardRight() - 24 - m.width("Card");

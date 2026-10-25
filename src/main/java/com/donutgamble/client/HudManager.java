@@ -28,7 +28,9 @@ final class HudManager {
 	HudManager(GambleState state) {
 		this.state = state;
 		this.queue = new QueueHud(state);
-		this.elements = List.of(queue, new AuctionHud(state), new LeaderboardHud(state), new ProfitHud(state), new ToastHud(state));
+		this.elements = List.of(queue,
+			new QueueHud(state, QueueHud.Tab.PAPER), new QueueHud(state, QueueHud.Tab.BLACKJACK), new QueueHud(state, QueueHud.Tab.ELY),
+			new ActivityHud(state), new AuctionHud(state), new LeaderboardHud(state), new ProfitHud(state), new ToastHud(state));
 		// Carry the old single-HUD settings over to the queue the first time.
 		if (!state.config.hud.slots.containsKey(queue.id)) {
 			HudLayout.Slot s = state.config.hud.slot(queue.id, state.config.hudX, state.config.hudY, state.config.hudVisible);
@@ -78,11 +80,13 @@ final class HudManager {
 		double[] m = mouse();
 		for (HudElement e : elements) {
 			HudLayout.Slot s = slot(e, tr);
-			boolean show = editing || (s.visible && e.hasContent());
+			// The editor shows visible components, plus a hidden one while it's selected.
+			boolean show = editing ? s.visible || e.id.equals(HudEditorScreen.selectedId) : s.visible && e.hasContent();
 			if (!show) {
 				e.screenW = e.screenH = 0;
 				continue;
 			}
+			e.compact = s.compact;
 			int[] size = e.size(tr, editing);
 			int w = Math.round(size[0] * s.scale);
 			int h = Math.round(size[1] * s.scale);
@@ -96,7 +100,14 @@ final class HudManager {
 			ctx.getMatrices().translate(pos[0], pos[1]);
 			ctx.getMatrices().scale(s.scale, s.scale);
 			regions.transform(pos[0], pos[1], s.scale);
-			e.draw(ctx, tr, regions, m[0], m[1], editing);
+			Paint.hudOpacity = Math.max(0.2f, Math.min(1f, s.opacity));
+			Colors.pushAccent(s.accent);
+			try {
+				e.draw(ctx, tr, regions, m[0], m[1], editing);
+			} finally {
+				Colors.popAccent();
+				Paint.hudOpacity = 1f;
+			}
 			ctx.getMatrices().popMatrix();
 			if (editing) {
 				drawEditorFrame(ctx, tr, e, s);
@@ -195,6 +206,101 @@ final class HudManager {
 			!(click(click.x(), click.y(), click.button()) || (click.button() == 0 && startDrag(click.x(), click.y()))));
 		net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseDrag(screen).register((s, click, dx, dy) -> !drag(click.x(), click.y()));
 		net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseRelease(screen).register((s, click) -> !endDrag());
+	}
+
+	HudElement element(String id) {
+		for (HudElement e : elements) {
+			if (e.id.equals(id)) {
+				return e;
+			}
+		}
+		return null;
+	}
+
+	/** Puts one component back to its default place, size and style. */
+	void resetSlot(HudElement e) {
+		state.config.hud.slots.remove(e.id);
+		slot(e, MinecraftClient.getInstance().textRenderer);
+		state.save();
+	}
+
+	static final java.util.List<String> PRESETS = java.util.List.of("Minimal", "Standard", "Streamer", "Competitive");
+
+	/**
+	 * Arranges every component for a use case, from their current sizes and this screen:
+	 * Minimal (queue and auction, compact), Standard (the defaults), Streamer (viewer-facing auction,
+	 * leaderboard and game activity large; private session figures off), Competitive (a queue per
+	 * game, activity and session).
+	 */
+	void applyPreset(String preset) {
+		MinecraftClient client = MinecraftClient.getInstance();
+		TextRenderer tr = client.textRenderer;
+		int sw = client.getWindow().getScaledWidth();
+		int sh = client.getWindow().getScaledHeight();
+		state.config.hud.slots.clear();
+		java.util.Set<String> on = new java.util.HashSet<>();
+		float big = 1f;
+		boolean compact = false;
+		switch (preset) {
+			case "Minimal" -> {
+				on.addAll(java.util.List.of("queue", "auction", "toasts"));
+				compact = true;
+			}
+			case "Streamer" -> {
+				on.addAll(java.util.List.of("queue", "auction", "leaderboard", "activity", "toasts"));
+				big = sw >= 600 ? 1.25f : 1f;
+			}
+			case "Competitive" -> on.addAll(java.util.List.of("queue.paper", "queue.blackjack", "queue.ely", "activity", "auction",
+				"leaderboard", "profit", "toasts"));
+			default -> on.addAll(java.util.List.of("queue", "auction", "leaderboard", "toasts"));
+		}
+		java.util.Map<String, int[]> sizes = new java.util.HashMap<>();
+		for (HudElement e : elements) {
+			slot(e, tr);
+			e.compact = compact;
+			sizes.put(e.id, e.size(tr, true));
+		}
+		int leftX = 6, leftY = 6, leftColW = 0;
+		int rightX = sw - 6, rightY = 6, rightColW = 0;
+		int bottom = sh - 40;
+		for (HudElement e : elements) {
+			HudLayout.Slot s = state.config.hud.slots.get(e.id);
+			s.visible = on.contains(e.id);
+			s.compact = compact && !e.id.equals("toasts");
+			int[] size = sizes.get(e.id);
+			boolean right = e.id.equals("auction") || e.id.equals("leaderboard") || e.id.equals("profit");
+			if (right) {
+				s.scale = e.id.equals("profit") ? 1f : big;
+			}
+			if (!s.visible || e.id.equals("toasts")) {
+				continue;
+			}
+			int w = Math.round(size[0] * s.scale);
+			int h = Math.round(size[1] * s.scale);
+			// Stack down each side; start a new column when the screen runs out.
+			if (right) {
+				if (rightY > 6 && rightY + h > bottom) {
+					rightX -= rightColW + 6;
+					rightY = 6;
+					rightColW = 0;
+				}
+				s.x = rightX - w;
+				s.y = rightY;
+				rightY += h + 6;
+				rightColW = Math.max(rightColW, w);
+			} else {
+				if (leftY > 6 && leftY + h > bottom) {
+					leftX += leftColW + 6;
+					leftY = 6;
+					leftColW = 0;
+				}
+				s.x = leftX;
+				s.y = leftY;
+				leftY += h + 6;
+				leftColW = Math.max(leftColW, w);
+			}
+		}
+		state.save();
 	}
 
 	void resetLayout() {

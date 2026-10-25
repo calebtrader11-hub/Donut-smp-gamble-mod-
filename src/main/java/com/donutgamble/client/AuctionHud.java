@@ -26,7 +26,12 @@ final class AuctionHud extends HudElement {
 
 	@Override
 	boolean hasContent() {
-		return state.auctions.isLive();
+		return (state.auctions.isLive() && state.auctions.current.hudCard) || result() != null;
+	}
+
+	/** The auction that just ended, for a few seconds after (the results card). */
+	private Auction result() {
+		return state.auctions.current == null ? state.recentResult() : null;
 	}
 
 	private Auction auction(boolean editing) {
@@ -49,7 +54,13 @@ final class AuctionHud extends HudElement {
 
 	@Override
 	int[] size(TextRenderer tr, boolean editing) {
+		if (result() != null) {
+			return new int[]{W, 46};
+		}
 		Auction a = auction(editing);
+		if (compact) {
+			return new int[]{W, 46};
+		}
 		return new int[]{W, 66 + (hasDescription(a) ? 10 : 0)};
 	}
 
@@ -60,6 +71,11 @@ final class AuctionHud extends HudElement {
 
 	@Override
 	void draw(DrawContext ctx, TextRenderer tr, Regions regions, double mouseX, double mouseY, boolean editing) {
+		Auction done = result();
+		if (done != null) {
+			drawResult(ctx, tr, done);
+			return;
+		}
 		Auction a = auction(editing);
 		if (a == null) {
 			return;
@@ -84,6 +100,18 @@ final class AuctionHud extends HudElement {
 		String status = preview ? "PREVIEW" : paused ? "PAUSED" : "LIVE";
 		Paint.hudText(ctx, tr, status, W - 6 - tr.getWidth(status), 7, paused || preview ? Colors.GOLD : Colors.GREEN);
 		int y = 18;
+		if (compact) {
+			int color = paused ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.INK;
+			Paint.big(ctx, tr, Fmt.clock(left), 6, 22, 2, color, true);
+			Standing leader = preview ? null : a.leader();
+			if (leader != null) {
+				String name = Paint.fit(tr, leader.player(), W - 70);
+				Paint.hudText(ctx, tr, name, W - 6 - tr.getWidth(name), 26, Colors.GOLD);
+			}
+			float frac = (float) left / Math.max(1, Math.max(a.durationMs, left));
+			Paint.bar(ctx, 6, 40, W - 12, 2, frac, Colors.alpha(0xFFFFFFFF, 0x20), paused ? Colors.GOLD : Colors.accent());
+			return;
+		}
 		if (hasDescription(a)) {
 			Paint.hudText(ctx, tr, Paint.fit(tr, a.description, W - textX - 6), textX, y, Colors.muted());
 			y += 10;
@@ -103,5 +131,35 @@ final class AuctionHud extends HudElement {
 		Standing leader = preview ? null : a.leader();
 		String lead = leader == null ? "No bids yet" : "Leader " + leader.player() + (amounts ? " " + Fmt.money(leader.total()) : "");
 		Paint.hudText(ctx, tr, Paint.fit(tr, lead, W - 12), 6, clockY + 26, leader == null ? Colors.muted() : Colors.text());
+	}
+
+	/** Results card: winner and total, shown briefly after the auction ends. */
+	private void drawResult(DrawContext ctx, TextRenderer tr, Auction a) {
+		long since = System.currentTimeMillis() - a.endedAt;
+		float pop = Math.min(1f, since / 250f);
+		Paint.hud(ctx, 0, 0, W, 46);
+		boolean cancelled = a.status == Auction.Status.CANCELLED;
+		int color = cancelled ? Colors.ORANGE : Colors.GOLD;
+		ctx.fillGradient(1, 1, W - 1, 20, Colors.fade(Colors.alpha(color, 0x50), pop), Colors.alpha(color, 0x00));
+		ItemStack icon = ItemIcons.of(a);
+		int textX = 6;
+		if (!icon.isEmpty()) {
+			ctx.drawItem(icon, 6, 5);
+			textX = 26;
+		}
+		Paint.hudText(ctx, tr, cancelled ? "AUCTION CANCELLED" : "AUCTION ENDED", textX, 5, color);
+		Paint.hudText(ctx, tr, Paint.fit(tr, a.item, W - textX - 6), textX, 15, Colors.text());
+		if (cancelled || a.winner == null) {
+			Paint.hudText(ctx, tr, cancelled ? "Everyone gets a refund" : "No winner", 6, 31, Colors.muted());
+			return;
+		}
+		boolean amounts = a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
+		Standing w = a.leader();
+		String line = "Winner " + a.winner;
+		Paint.hudText(ctx, tr, Paint.fit(tr, line, W - 70), 6, 31, Colors.GOLD);
+		if (amounts && w != null) {
+			String total = Fmt.money(w.total());
+			Paint.hudText(ctx, tr, total, W - 6 - tr.getWidth(total), 31, Colors.text());
+		}
 	}
 }

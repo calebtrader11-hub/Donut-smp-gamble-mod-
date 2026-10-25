@@ -12,6 +12,9 @@ abstract class HudElement {
 	final String id;
 	final String title;
 
+	/** Compact layout requested by the component's style (fewer rows, less detail). */
+	boolean compact;
+
 	/** Screen-space bounds from the last frame (after scaling), for dragging and the editor. */
 	int screenX, screenY, screenW, screenH;
 

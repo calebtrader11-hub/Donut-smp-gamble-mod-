@@ -35,7 +35,7 @@ public abstract class ScaledScreen extends Screen {
 		while (scale > 1 && (window.getFramebufferWidth() / scale < minW || window.getFramebufferHeight() / scale < minH)) {
 			scale--;
 		}
-		factor = forcedFactor > 0 ? forcedFactor : scale / (float) gui;
+		factor = forcedFactor > 0 && minW > 1 ? forcedFactor : scale / (float) gui;
 		vw = Math.round(width / factor);
 		vh = Math.round(height / factor);
 		layout();
@@ -87,12 +87,22 @@ public abstract class ScaledScreen extends Screen {
 
 	@Override
 	public final boolean mouseReleased(Click click) {
-		return super.mouseReleased(scaled(click));
+		return onMouseReleased(scaled(click));
+	}
+
+	/** Mouse up, in virtual coordinates. */
+	protected boolean onMouseReleased(Click click) {
+		return super.mouseReleased(click);
 	}
 
 	@Override
 	public final boolean mouseDragged(Click click, double dx, double dy) {
-		return super.mouseDragged(scaled(click), dx / factor, dy / factor);
+		return onMouseDragged(scaled(click), dx / factor, dy / factor);
+	}
+
+	/** Drag, in virtual coordinates. */
+	protected boolean onMouseDragged(Click click, double dx, double dy) {
+		return super.mouseDragged(click, dx, dy);
 	}
 
 	@Override

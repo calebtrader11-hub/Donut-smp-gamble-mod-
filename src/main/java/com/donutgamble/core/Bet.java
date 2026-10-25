@@ -20,6 +20,8 @@ public class Bet {
 	public boolean tie;
 	/** True once the winner has been paid / their elytra delivered. */
 	public boolean settled;
+	/** When the result was called (0 for bets saved before this was recorded). */
+	public long resolvedAt;
 
 	public boolean isPending() {
 		return outcome == null;

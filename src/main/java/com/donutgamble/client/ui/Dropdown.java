@@ -61,6 +61,13 @@ public final class Dropdown extends ClickableWidget {
 		}
 	}
 
+	/** Top of the open list: below the box, or above it when there's no room underneath. */
+	private int popupTop() {
+		int fullH = options.size() * ROW + 4;
+		int below = getY() + getHeight() + 2;
+		return below + fullH > owner.vh - 2 && getY() - fullH - 2 >= 2 ? getY() - fullH - 2 : below;
+	}
+
 	/** The open list, drawn by the owner on top of everything. */
 	void drawPopup(DrawContext ctx, int mouseX, int mouseY) {
 		TextRenderer tr = MinecraftClient.getInstance().textRenderer;
@@ -68,7 +75,8 @@ public final class Dropdown extends ClickableWidget {
 		int fullH = options.size() * ROW + 4;
 		int h = Math.max(4, Math.round(fullH * t));
 		int x = getX();
-		int y = getY() + getHeight() + 2;
+		boolean up = popupTop() < getY();
+		int y = up ? popupTop() + fullH - h : popupTop();
 		Paint.shadow(ctx, x, y, getWidth(), h, 4);
 		Paint.card(ctx, x, y, getWidth(), h, Paint.RADIUS, Colors.CARD_HI, Colors.LINE_HI);
 		ctx.enableScissor(x, y, x + getWidth(), y + h);
@@ -90,7 +98,7 @@ public final class Dropdown extends ClickableWidget {
 	/** Handles a click while open; returns true if it landed on the list. */
 	boolean clickPopup(double mx, double my) {
 		int x = getX();
-		int y = getY() + getHeight() + 2;
+		int y = popupTop();
 		if (mx < x || mx >= x + getWidth() || my < y || my >= y + options.size() * ROW + 4) {
 			return false;
 		}
