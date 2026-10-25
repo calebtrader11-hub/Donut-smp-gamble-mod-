@@ -56,12 +56,12 @@ All ranges, multipliers and the elytra price are editable in config / the GUI.
 - **HUD overlay** — always-on compact profit card: session Net Profit (green/red,
   large), Wagered, W/L count, last 5 results with scores (e.g. `Steve 18-20 L +100M`, `Alex 9-8 W −50M`), owed count. Position/scale
   configurable; toggle hotkey.
-- **Control screen** (hotkey, default `F1`) — dark rounded panels, accent color:
+- **Control screen** (hotkey, default `Insert`) — dark rounded panels, accent color:
   pending bet cards with WIN/LOSE + game chips, Owed list, elytra price input,
   session/lifetime stats, "New Session" reset.
 
 ## Hotkeys (rebindable)
-`F1` open panel (a small mixin cancels vanilla F1 "hide HUD" while F1 is bound to the panel, so the profit HUD never disappears on stream) · `H` toggle HUD · `]` newest pending = WIN · `[` newest pending = LOSE.
+`Insert` open panel · `H` toggle HUD · `]` newest pending = WIN · `[` newest pending = LOSE.
 
 ## Out of scope (YAGNI)
 Auto-sending payments, OBS browser overlay, multi-account, reading other
