@@ -17,7 +17,7 @@ import net.minecraft.text.Text;
 import java.nio.file.Files;
 import java.util.Locale;
 
-/** Drives a real client: fake /pay messages, call some bets, screenshot the queue and the score box. */
+/** Drives a real client: fake /pay messages, calls bets and runs an auction, checking results and screenshotting every screen. */
 public class DonutGambleClientGameTest implements FabricClientGameTest {
 	private static final long M = 1_000_000L;
 
@@ -67,33 +67,81 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.runOnClient(client -> DonutGambleClient.state.setTheme(Colors.Theme.AQUA));
-		for (QueueOverlay.Tab tab : QueueOverlay.Tab.values()) {
+		for (QueueHud.Tab tab : QueueHud.Tab.values()) {
 			context.runOnClient(client -> DonutGambleClient.state.config.activeTab = tab.name());
 			context.waitTicks(3);
-			context.takeScreenshot("donutgamble-tab-" + tab.name().toLowerCase(java.util.Locale.ROOT));
+			context.takeScreenshot("donutgamble-tab-" + tab.name().toLowerCase(Locale.ROOT));
 		}
+		context.runOnClient(client -> DonutGambleClient.state.config.activeTab = QueueHud.Tab.PAPER.name());
 
-		context.runOnClient(client -> client.setScreen(ScoreScreen.elytraPrice(DonutGambleClient.state, DonutGambleClient.state.ledger.pending().get(2))));
-		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-elytra");
-
+		// W on Paper: recorded, "Awaiting manual payment" toast, score picker with 1-9.
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
-			Bet first = state.ledger.pending().get(0);
-			state.resolve(first, Outcome.PLAYER_WIN, null, null);
-			client.setScreen(ScoreScreen.score(state, first, "WON"));
+			Bet first = state.ledger.pending(Game.PAPER).get(0);
+			state.callWin(first);
+			check(first.outcome == Outcome.PLAYER_WIN, "W records the win");
+			check(client.currentScreen instanceof ScoreScreen, "W opens the score picker");
+			check(state.activeToasts().stream().anyMatch(t -> t.text().startsWith("Awaiting manual payment of $100m")), "payment toast");
 		});
-		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-score");
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-score-paper-empty");
+		context.runOnClient(client -> {
+			// Type "9" then "8" like the streamer would.
+			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_9, 0, 0));
+			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_8, 0, 0));
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-score-paper");
+		context.runOnClient(client -> {
+			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0));
+			Bet b = DonutGambleClient.state.ledger.bets.stream().filter(x -> x.player.equals("RazorBroGaming")).findFirst().orElseThrow();
+			check(b.scoreThem == 9 && b.scoreMe == 8, "typed score saved");
+			check(!(client.currentScreen instanceof ScoreScreen), "picker closes on save");
+		});
 
+		// L on Blackjack: picker with 17-21 + Bust.
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			Bet bj = state.ledger.pending(Game.BLACKJACK).get(0);
+			state.callLoss(bj);
+			check(client.currentScreen instanceof ScoreScreen, "L opens the score picker");
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-score-blackjack");
+		context.setScreen(() -> null);
+
+		// T: no picker.
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			Bet next = state.ledger.pending(Game.PAPER).get(0);
-			state.resolveTie(next);
-			client.setScreen(ScoreScreen.score(state, next, "TIED"));
+			state.callTie(next);
+			check(next.tie, "T records a tie");
+			check(!(client.currentScreen instanceof ScoreScreen), "T doesn't open the score picker");
 		});
-		context.waitTicks(5);
-		context.takeScreenshot("donutgamble-tie");
+
+		// W on Ely: price first, then the win.
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			Bet ely = state.ledger.pending(Game.ELY).get(0);
+			state.callWin(ely);
+			check(ely.isPending(), "Ely win waits for the price");
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-elytra");
+		context.setScreen(() -> null);
+
+		context.setScreen(() -> new OverlayPreviewScreen());
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-toasts");
+
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			state.config.hud.slot("profit", 0, 0, false).visible = true;
+			client.setScreen(new HudEditorScreen(DonutGambleClient.hud, null));
+		});
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-hud-editor");
+		context.setScreen(() -> null);
 
 		runAuction(context);
 		context.setScreen(() -> null);
@@ -101,6 +149,8 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 
 	/** Auction + finance on top of the gamble state above: routing, dedupe, corrections, refunds, exports, GUI. */
 	private void runAuction(ClientGameTestContext context) {
+		// Lay the manager out at 480x270, what 1080p with automatic GUI scale gives: the tightest common size.
+		context.runOnClient(client -> com.donutgamble.client.ui.ScaledScreen.forcedFactor = client.getWindow().getScaledWidth() / 480f);
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			state.config.auctionRefundLosers = true;
@@ -121,14 +171,14 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			check(state.ledger.pending().size() == queued, "auction payments stay out of the gamble queue");
 			state.correctAuction("hayden260", 25 * M);
 			check(a.total() == 2250 * M, "manual correction");
-			state.config.activeTab = QueueOverlay.Tab.AUCTION.name();
+			state.config.activeTab = QueueHud.Tab.AUCTION.name();
 		});
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-auction-live");
 
 		for (ManagerScreen.Section section : new ManagerScreen.Section[]{
-			ManagerScreen.Section.DASHBOARD, ManagerScreen.Section.AUCTION, ManagerScreen.Section.LEADERBOARD}) {
+			ManagerScreen.Section.DASHBOARD, ManagerScreen.Section.PLAYERS, ManagerScreen.Section.AUCTION, ManagerScreen.Section.LEADERBOARD}) {
 			context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, section));
 			context.waitTicks(3);
 			context.takeScreenshot("donutgamble-manager-" + section.name().toLowerCase(Locale.ROOT));
@@ -166,16 +216,21 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 				throw new AssertionError(e);
 			}
 
-			QueueOverlay overlay = DonutGambleClient.overlay;
-			state.config.hudX = 6;
-			state.config.hudY = 6;
-			check(overlay.startDrag(8, 8), "grab the queue");
-			overlay.drag(120, 60);
-			overlay.endDrag();
-			check(state.config.hudX == 118 && state.config.hudY == 58, "queue was dragged");
-			state.config.hudX = 6;
-			state.config.hudY = 6;
-			state.config.activeTab = QueueOverlay.Tab.OWE.name();
+			HudManager hud = DonutGambleClient.hud;
+			var slot = state.config.hud.slots.get("queue");
+			slot.x = 6;
+			slot.y = 6;
+			hud.snap = false;
+			hud.queue.screenX = 6;
+			hud.queue.screenY = 6;
+			check(hud.startDrag(10, 10), "grab the queue");
+			hud.drag(124, 64);
+			hud.endDrag();
+			check(slot.x == 120 && slot.y == 60, "queue was dragged to " + slot.x + "," + slot.y);
+			slot.x = 6;
+			slot.y = 6;
+			hud.snap = true;
+			state.config.activeTab = QueueHud.Tab.OWE.name();
 		});
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.waitTicks(3);
@@ -201,7 +256,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		@Override
 		public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 			super.render(ctx, mouseX, mouseY, delta);
-			DonutGambleClient.overlay.render(ctx, null);
+			DonutGambleClient.hud.renderNow(ctx);
 		}
 	}
 

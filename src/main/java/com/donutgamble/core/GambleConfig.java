@@ -22,9 +22,12 @@ public class GambleConfig {
 	public long elytraPrice = 0;
 
 	public boolean hudVisible = true;
+	/** Old single-HUD position; only read to seed the queue's slot in {@link #hud}. */
 	public int hudX = 6;
 	public int hudY = 6;
 	public float hudScale = 1.0f;
+	/** Position, size and visibility of each HUD component (queue, auction, profit, toasts). */
+	public HudLayout hud = new HudLayout();
 	/** Aqua, Purple, Gold, Red, Lime, Pink or White. Click "Profit" in game to cycle. */
 	public String theme = "AQUA";
 

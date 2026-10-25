@@ -26,11 +26,13 @@ import java.util.Map;
 
 /** The mod's live state and every action the queue, manager and hotkeys can take. Saves after each change. */
 public final class GambleState {
-	public record Toast(String text, int color, long until) {
+	public record Toast(String text, int color, long start, long until) {
 	}
 
 	private static final long TOAST_MS = 4000;
-	private static final int MAX_TOASTS = 4;
+	/** "Awaiting manual payment" stays up longer: it's a to-do. */
+	private static final long PAYMENT_TOAST_MS = 8000;
+	static final int MAX_TOASTS = 4;
 
 	private final Storage storage = new Storage();
 	public final GambleConfig config;
@@ -52,11 +54,28 @@ public final class GambleState {
 		if (auctions.current != null) {
 			auctions.current.pause(System.currentTimeMillis());
 		}
+		storage.dailyBackup();
 		save();
 	}
 
+	/** Queues a save; files are written in the background a moment later. */
 	public void save() {
 		storage.save(config, ledger, finance, auctions);
+	}
+
+	/** Writes everything now (game closing). */
+	void flush() {
+		save();
+		storage.flush();
+	}
+
+	java.nio.file.Path dataDir() {
+		return storage.dir();
+	}
+
+	public void backupNow() {
+		java.nio.file.Path p = storage.backupNow();
+		notify(p != null ? "Backed up to backups/" + p.getFileName() : "Backup failed: see the log", p != null ? Colors.text() : Colors.RED);
 	}
 
 	// ---- payments from chat ----
@@ -88,18 +107,18 @@ public final class GambleState {
 			tx.auctionId = auctions.current.id;
 			Standing leader = auctions.current.leader();
 			int rank = rankOf(auctions.current, player);
-			notify("+" + QueueOverlay.money(amount) + " " + player + " → auction #" + rank
+			notify("+" + Fmt.money(amount) + " " + player + " → auction #" + rank
 				+ (leader != null && leader.player().equalsIgnoreCase(player) ? " (leading)" : ""), Colors.GREEN);
 		} else {
 			Game game = GameClassifier.guess(amount, config.lastGame, config);
 			Bet bet = ledger.addPayment(player, amount, game, now);
 			tx.betId = bet.id;
 			// Jump to the new bet's tab if the open game tab has nothing waiting.
-			Game open = QueueOverlay.Tab.parse(config.activeTab).game;
+			Game open = QueueHud.Tab.parse(config.activeTab).game;
 			if (open != null && open != game && ledger.pending(open).isEmpty()) {
-				config.activeTab = QueueOverlay.Tab.of(game).name();
+				config.activeTab = QueueHud.Tab.of(game).name();
 			}
-			notify("+" + QueueOverlay.money(amount) + " " + player + " → " + game.displayName, Colors.GREEN);
+			notify("+" + Fmt.money(amount) + " " + player + " → " + game.displayName, Colors.GREEN);
 		}
 		save();
 		return tx;
@@ -176,8 +195,8 @@ public final class GambleState {
 			return false;
 		}
 		Auction a = auctions.start(item, durationSec, prizeCost, System.currentTimeMillis());
-		config.activeTab = QueueOverlay.Tab.AUCTION.name();
-		notify("Auction started: " + a.item + " (" + QueueOverlay.clock(a.durationMs) + ")", Colors.text());
+		config.activeTab = QueueHud.Tab.AUCTION.name();
+		notify("Auction started: " + a.item + " (" + Fmt.clock(a.durationMs) + ")", Colors.text());
 		save();
 		return true;
 	}
@@ -249,7 +268,7 @@ public final class GambleState {
 				"Prize: " + a.item, a.endedAt, false);
 		}
 		notify(a.winner != null
-			? a.item + " won by " + a.winner + " · total " + QueueOverlay.money(a.total())
+			? a.item + " won by " + a.winner + " · total " + Fmt.money(a.total())
 			: a.item + " ended with no bids", Colors.GOLD);
 		save();
 	}
@@ -316,19 +335,25 @@ public final class GambleState {
 	// ---- notifications ----
 
 	void notify(String text, int color) {
+		notify(text, color, TOAST_MS);
+	}
+
+	void notify(String text, int color, long durationMs) {
 		if (!config.notifications) {
 			return;
 		}
-		toasts.add(new Toast(text, color, System.currentTimeMillis() + TOAST_MS));
+		long now = System.currentTimeMillis();
+		toasts.add(new Toast(text, color, now, now + durationMs));
 		while (toasts.size() > MAX_TOASTS) {
 			toasts.remove(0);
 		}
 	}
 
+	/** A snapshot of the toasts still showing (safe to iterate while new ones arrive). */
 	List<Toast> activeToasts() {
 		long now = System.currentTimeMillis();
 		toasts.removeIf(t -> t.until() < now);
-		return toasts;
+		return List.copyOf(toasts);
 	}
 
 	// ---- existing gamble actions ----
@@ -362,12 +387,66 @@ public final class GambleState {
 		save();
 	}
 
-	/** Hotkeys act on #1 in the open game tab (or the oldest bet overall on other tabs). */
+	// ---- calling a result (queue letters and hotkeys) ----
+
+	/**
+	 * W: they won. Paper/Blackjack record it, show "Awaiting manual payment" and open the score
+	 * picker. Ely first confirms what the elytra costs.
+	 */
+	public void callWin(Bet bet) {
+		if (bet.game == Game.ELY) {
+			MinecraftClient.getInstance().setScreen(ScoreScreen.elytraPrice(this, bet));
+			return;
+		}
+		resolve(bet, Outcome.PLAYER_WIN, null, null);
+		awaitingPayment(bet);
+		MinecraftClient.getInstance().setScreen(ScoreScreen.score(this, bet));
+	}
+
+	/** L: they lost. Paper/Blackjack open the score picker; Ely is just a miss. */
+	public void callLoss(Bet bet) {
+		resolve(bet, Outcome.PLAYER_LOSE, null, null);
+		notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), Colors.GREEN);
+		if (bet.game.usesScore()) {
+			MinecraftClient.getInstance().setScreen(ScoreScreen.score(this, bet));
+		}
+	}
+
+	/** T: a tie goes to you. No numbers needed. */
+	public void callTie(Bet bet) {
+		resolveTie(bet);
+		notify(bet.player + " tied · you keep " + Fmt.money(bet.amount), Colors.GREEN);
+	}
+
+	/** Ely hit, once the price is confirmed. */
+	void confirmElytraWin(Bet bet, long price) {
+		setElytraPrice(price);
+		resolve(bet, Outcome.PLAYER_WIN, null, null);
+		awaitingPayment(bet);
+	}
+
+	void awaitingPayment(Bet bet) {
+		notify("Awaiting manual payment of " + Fmt.owedLabel(bet) + " to " + bet.player, Colors.GOLD, PAYMENT_TOAST_MS);
+	}
+
+	/** Hotkeys act on #1 in the open game tab (or the oldest bet overall on other tabs), without the score picker. */
 	public void resolveFirst(Outcome outcome) {
-		Game game = QueueOverlay.Tab.parse(config.activeTab).game;
+		Game game = QueueHud.Tab.parse(config.activeTab).game;
 		List<Bet> queue = game != null ? ledger.pending(game) : ledger.pending();
-		if (!queue.isEmpty()) {
-			resolve(queue.get(0), outcome, null, null);
+		if (queue.isEmpty()) {
+			return;
+		}
+		Bet bet = queue.get(0);
+		if (outcome == Outcome.PLAYER_WIN && bet.game == Game.ELY && config.elytraPrice <= 0) {
+			// No price yet: an Ely win would count as costing nothing.
+			MinecraftClient.getInstance().setScreen(ScoreScreen.elytraPrice(this, bet));
+			return;
+		}
+		resolve(bet, outcome, null, null);
+		if (outcome == Outcome.PLAYER_WIN) {
+			awaitingPayment(bet);
+		} else {
+			notify(bet.player + " lost · you keep " + Fmt.money(bet.amount), Colors.GREEN);
 		}
 	}
 
@@ -419,8 +498,12 @@ public final class GambleState {
 		save();
 	}
 
+	/** H: show or hide the queue. */
 	public void toggleHud() {
-		config.hudVisible = !config.hudVisible;
+		com.donutgamble.core.HudLayout.Slot s = config.hud.slots.get("queue");
+		if (s != null) {
+			s.visible = !s.visible;
+		}
 		save();
 	}
 }

@@ -2,12 +2,12 @@ package com.donutgamble.client;
 
 import com.donutgamble.core.Outcome;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -23,19 +23,21 @@ public final class DonutGambleClient implements ClientModInitializer {
 	private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
 	static KeyBinding OPEN_QUEUE;
 	static KeyBinding OPEN_MANAGER;
+	private static KeyBinding OPEN_HUD_EDITOR;
 	private static KeyBinding TOGGLE_HUD;
 	private static KeyBinding FIRST_WIN;
 	private static KeyBinding FIRST_LOSE;
 	static GambleState state;
-	static QueueOverlay overlay;
+	static HudManager hud;
 
 	@Override
 	public void onInitializeClient() {
 		state = new GambleState();
-		overlay = new QueueOverlay(state);
+		hud = new HudManager(state);
 
 		OPEN_QUEUE = register("open_queue", GLFW.GLFW_KEY_INSERT);
 		OPEN_MANAGER = register("open_manager", GLFW.GLFW_KEY_HOME);
+		OPEN_HUD_EDITOR = register("open_hud_editor", GLFW.GLFW_KEY_END);
 		TOGGLE_HUD = register("toggle_hud", GLFW.GLFW_KEY_H);
 		FIRST_WIN = register("first_win", GLFW.GLFW_KEY_RIGHT_BRACKET);
 		FIRST_LOSE = register("first_lose", GLFW.GLFW_KEY_LEFT_BRACKET);
@@ -43,10 +45,13 @@ public final class DonutGambleClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			state.tick();
 			while (OPEN_QUEUE.wasPressed()) {
-				client.setScreen(new QueueScreen(overlay));
+				client.setScreen(new QueueScreen(hud));
 			}
 			while (OPEN_MANAGER.wasPressed()) {
-				ManagerScreen.open(state, ManagerScreen.Section.DASHBOARD);
+				ManagerScreen.openLast(state);
+			}
+			while (OPEN_HUD_EDITOR.wasPressed()) {
+				client.setScreen(new HudEditorScreen(hud, null));
 			}
 			while (TOGGLE_HUD.wasPressed()) {
 				state.toggleHud();
@@ -58,6 +63,7 @@ public final class DonutGambleClient implements ClientModInitializer {
 				state.resolveFirst(Outcome.PLAYER_LOSE);
 			}
 		});
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> state.flush());
 
 		// Server (system) messages only: player chat can't create fake payments.
 		ClientReceiveMessageEvents.GAME.register((message, overlayMessage) -> {
@@ -66,15 +72,12 @@ public final class DonutGambleClient implements ClientModInitializer {
 			}
 		});
 
-		HudElementRegistry.addLast(Identifier.of(MOD_ID, "queue"), overlay::render);
+		HudElementRegistry.addLast(Identifier.of(MOD_ID, "hud"), hud::render);
 
-		// The queue can also be clicked and dragged while chat is open.
+		// The HUD can also be clicked and dragged while chat is open.
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
-			if (screen instanceof ChatScreen) {
-				ScreenMouseEvents.allowMouseClick(screen).register((s, click) -> !(overlay.click(click.x(), click.y(), click.button())
-					|| (click.button() == 0 && overlay.startDrag(click.x(), click.y()))));
-				ScreenMouseEvents.allowMouseDrag(screen).register((s, click, dx, dy) -> !overlay.drag(click.x(), click.y()));
-				ScreenMouseEvents.allowMouseRelease(screen).register((s, click) -> !overlay.endDrag());
+			if (screen instanceof ChatScreen chat) {
+				hud.hookChat(chat);
 			}
 		});
 	}

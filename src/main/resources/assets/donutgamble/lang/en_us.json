@@ -2,7 +2,8 @@
 	"key.category.donutgamble.main": "Donut Gamble",
 	"key.donutgamble.open_queue": "Click the queue (frees mouse)",
 	"key.donutgamble.open_manager": "Open manager (auctions, finance, history)",
-	"key.donutgamble.toggle_hud": "Show/hide queue",
+	"key.donutgamble.open_hud_editor": "Edit HUD layout",
+	"key.donutgamble.toggle_hud": "Show/hide the queue",
 	"key.donutgamble.first_win": "#1 in queue: WIN",
 	"key.donutgamble.first_lose": "#1 in queue: LOSE"
 }

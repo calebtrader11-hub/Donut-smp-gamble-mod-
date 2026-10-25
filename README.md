@@ -22,14 +22,14 @@ The queue in the top-left has a tab for each game, plus **Auction**, **Owe** and
 |---|---|
 | **Paper** / **BJ** / **Ely** | That game's queue and profit. **#1 is the bet you're playing now.** The number on the tab is how many are waiting. |
 | **Auction** | The live auction: item, countdown, total, top 5 with their share, and **Pause / +30s / End / Manager**. With no auction running: the last result and **Start**. |
-| **Owe** | Everyone you still owe ("awaiting manual payment of $90m"): gamble winners and auction refunds, with the total. |
+| **Owe** | Everyone you still owe: gamble winners and auction refunds, with the total. |
 | **Stats** | Profit, W-L-T and total bet for each game, this session and lifetime. Also **Color** and **New session**. |
 
 ```
-Paper 6  BJ 1  Ely 4  Owe 2  Stats
-Paper profit +355M
-> 1 RazorBroGaming  $50m   W L T  →BJ
-> 2 hayden260       $250m  W L T  →BJ
+Paper 6  BJ 1  Ely 4  Auction  Owe 2  Stats
+Paper profit +$355m
+1  RazorBroGaming  $50m   W L T  →BJ
+2  hayden260       $250m  W L T  →BJ
 ```
 
 New payments go to the tab for the game guessed from the amount. If the tab you have open is
@@ -40,9 +40,9 @@ To click tabs and letters, open chat (`T`) or press `Insert` to free the mouse.
 | Click | What it does |
 |---|---|
 | A tab | Switch to it. |
-| **W** | They won. A box opens saying "Awaiting manual payment of $100m" with the score (Them / Me). Press Enter to save or Skip. |
-| **T** | Tie (goes to you). The same score box opens. |
-| **L** | They lost. Recorded straight away, no box. |
+| **W** | They won. A pop-up says **"Awaiting manual payment of $100m to …"**, and the score picker opens. |
+| **L** | They lost. The score picker opens. |
+| **T** | Tie: goes to you. Recorded straight away, no numbers. |
 | **W** on an Ely bet | They hit the item frame. Confirm the elytra price, and it's counted as your cost. |
 | **→BJ** (etc.) | Move a bet to another game's tab if the guess was wrong. |
 | **P** (Owe tab) | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |
@@ -56,21 +56,45 @@ To click tabs and letters, open chat (`T`) or press `Insert` to free the mouse.
 | `Insert` | Free the mouse to click or drag the queue (press again to close) |
 | `Home` | Open / close the manager |
 | `H` | Show / hide the queue |
-| `]` / `[` | #1 in the open game tab won / lost (no score box) |
+| `]` / `[` | #1 in the open game tab won / lost (no score picker) |
+| `End` | HUD editor |
 
 Keys can be changed under **Options → Controls → Key Binds → Donut Gamble**.
 
 Game guess from the amount: Paper 5M – 500M, Blackjack 101M – 701M (overlaps use your last
 game), anything else is Ely Arrows.
 
-Drag the queue anywhere by grabbing an empty part of it while chat or `Insert` is open. Pop-ups
-for each payment and auction event show bottom-right (turn them off in Settings).
+### Score picker
+
+![Score picker](docs/screenshots/score-paper.png)
+
+Click the numbers the round ended on, then **Save** (or press Enter). The numbers are optional;
+**Skip** keeps the result without them.
+
+- **Paper**: 1 to 9. You can also just type the two digits (theirs, then yours).
+- **Blackjack**: 17, 18, 19, 20, 21 or **Bust** (players hit until 17+).
+- If the numbers say the opposite of what you clicked, the picker warns you before you save.
+
+### HUD and HUD editor
+
+![HUD editor](docs/screenshots/hud-editor.png)
+
+The HUD is four pieces you can arrange: the **Queue**, an **Auction timer** (shown only while an
+auction is live), **Session profit** (off by default) and **Notifications**. Press `End` (or
+**Edit HUD layout** in Settings) to open the editor:
+
+- **Drag** a piece to move it. It snaps to the screen edges, the center and a 4px grid (Snap: On/Off).
+- **Scroll** over a piece to resize it (50% to 200%).
+- **Right-click** a piece to show or hide it.
+- **Reset layout** puts everything back.
+
+The layout is saved. You can also drag pieces while chat or `Insert` is open.
 
 ## Auctions
 
 ![Auction tab](docs/screenshots/auction-live.png)
 
-1. Start one from the **Auction** tab (default length) or the manager's **Active Auction**
+1. Start one from the **Auction** tab (default length) or the manager's **Auction**
    section (item, length like `5m` / `90s` / `2:30`, and an optional prize cost).
 2. While it's live, every `/pay` counts toward it instead of the gamble queue. Each player's
    payments add up, and the biggest total leads; on a tie, whoever paid first ranks higher.
@@ -91,13 +115,17 @@ A live auction is paused if you close the game, so no time is lost. Resume it fr
 
 | Section | What's there |
 |---|---|
-| **Dashboard** | Session and lifetime net, received, paid out, expenses; the live auction; queue counts; latest payments. |
-| **Active Auction** | Start form, or the big countdown with Pause / ±30s / +5m / End now / Cancel, top contributors, and **manual correction** (add or take away from a player's auction total). |
+| **Dashboard** | Session and lifetime net, received, paid out; the live auction; queue counts; latest payments. |
+| **Players** | Everyone who has paid, bet or bid. Search, then click one: paid you, you paid, net, W-L-T, wagered, bets net, auction bids and wins, recent payments. |
+| **Auction** | Start form, or the big countdown with Pause / ±30s / +5m / End now / Cancel, top contributors, and **manual correction** (add or take away from a player's auction total). |
 | **Leaderboard** | Full ranking of the live or last auction: total, number of payments, share. Scroll for more. |
 | **Payments** | Every payment in and out, newest first. **Search** by player, amount (`200m`), type or source. Click a name for that player's history. **void / undo** takes an entry out of every total (and out of the queue or auction it went to). Add a missed payment or payout by hand. Export **CSV** / **JSON**. |
 | **Finance** | Session and lifetime: received (from gamble / auction / other), paid out, expenses, net profit, counts, game results; top payers; add an expense; **Export report**. |
 | **Auction History** | Every finished auction; click one for its summary (winner, total, prize cost, top 5, refunds still owed). Export CSV / JSON. |
-| **Settings** | Color, pop-ups, auction rules, default length, duplicate window, elytra price, HUD size and reset position. |
+| **Settings** | Auction rules, color, pop-ups, **Edit HUD layout**, duplicate window, elytra price, **Back up** / **Open folder**. Typed values apply when you press Enter. |
+
+The manager is laid out for at least 480×270 GUI pixels. If your GUI scale leaves less room, it
+draws at the next smaller whole scale so text stays sharp instead of overlapping.
 
 ### How the money is counted
 
@@ -119,6 +147,12 @@ Everything is saved in `.minecraft/config/donutgamble/` after every change:
 - `finance.json`: every payment in and out, expenses and corrections.
 - `auctions.json`: the live auction, past auctions and refunds.
 - `exports/`: CSV / JSON / report files from the manager.
+- `backups/`: a copy of all of the above once a day (last 7 days kept) plus any **Back up** you make.
+  If a file is ever unreadable, the mod loads the newest backup instead of starting empty, and
+  keeps the bad file as `*.broken`.
+
+Saving happens in the background a moment after each change, and everything is written when the
+game closes, so a busy stream never stutters.
 - `config.json`: settings. You can change game ranges, `winMultiplier`, HUD position
   (`hudX`, `hudY`, `hudScale`), `theme` and `extraPayPatterns`.
 

@@ -36,6 +36,6 @@ public class Bet {
 		if (scoreThem == null || scoreMe == null) {
 			return tie ? "T" : outcome == Outcome.PLAYER_WIN ? "W" : "L";
 		}
-		return scoreThem + "-" + scoreMe;
+		return ScoreOptions.label(game, scoreThem) + "-" + ScoreOptions.label(game, scoreMe);
 	}
 }

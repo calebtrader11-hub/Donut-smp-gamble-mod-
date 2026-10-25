@@ -1,88 +1,111 @@
 package com.donutgamble.client;
 
+import com.donutgamble.client.ui.Anim;
+import com.donutgamble.client.ui.Button;
+import com.donutgamble.client.ui.Paint;
+import com.donutgamble.client.ui.TextBox;
 import com.donutgamble.core.AmountParser;
 import com.donutgamble.core.Bet;
 import com.donutgamble.core.Outcome;
+import com.donutgamble.core.ScoreJudge;
+import com.donutgamble.core.ScoreOptions;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-/** Small box that pops up after a letter is clicked: the round's numbers, or the elytra price. */
+import java.util.List;
+
+/**
+ * The small window after W or L: pick the round's numbers (Paper 1-9, Blackjack 17-21 or Bust).
+ * The result is already recorded; the numbers are optional. For an Ely hit it asks for the
+ * elytra price instead, and records the win on confirm.
+ */
 final class ScoreScreen extends Screen {
-	private static final int MIN_W = 150;
-	private static final int H = 74;
+	private static final int CHIP_GAP = 3;
 
 	private final GambleState state;
 	private final Bet bet;
-	private final String heading;
-	private final String subline;
-	private final int sublineColor;
 	private final boolean elytra;
-	private int W;
-	private TextFieldWidget them, me, price;
+	private final List<ScoreOptions.Option> options;
+	private final Anim open = new Anim(0);
+	private Integer them, me;
+	private TextBox price;
+	private int wx, wy, ww, wh, chipW;
 
-	private ScoreScreen(GambleState state, Bet bet, String heading, String subline, int sublineColor, boolean elytra) {
-		super(Text.literal(heading));
+	private ScoreScreen(GambleState state, Bet bet, boolean elytra) {
+		super(Text.literal(bet.player));
 		this.state = state;
 		this.bet = bet;
-		this.heading = heading;
-		this.subline = subline;
-		this.sublineColor = sublineColor;
 		this.elytra = elytra;
+		this.options = ScoreOptions.forGame(bet.game);
 	}
 
-	/** Result already recorded; this just asks for the numbers (optional). */
-	static ScoreScreen score(GambleState state, Bet bet, String result) {
-		if (bet.tie) {
-			return new ScoreScreen(state, bet, bet.player + " " + result, "Tie goes to you: +" + QueueOverlay.money(bet.amount), Colors.GREEN, false);
-		}
-		if (bet.outcome == Outcome.PLAYER_WIN) {
-			return new ScoreScreen(state, bet, bet.player + " " + result, awaiting(QueueOverlay.owedLabel(bet)), Colors.GOLD, false);
-		}
-		return new ScoreScreen(state, bet, bet.player + " " + result, "You keep " + QueueOverlay.money(bet.amount), Colors.GREEN, false);
+	/** After W or L on Paper / Blackjack. */
+	static ScoreScreen score(GambleState state, Bet bet) {
+		return new ScoreScreen(state, bet, false);
 	}
 
-	/** An Ely win: confirm what the elytra costs before it's counted. */
+	/** W on Ely: confirm the elytra price, then the win is recorded. */
 	static ScoreScreen elytraPrice(GambleState state, Bet bet) {
-		return new ScoreScreen(state, bet, bet.player + " hit", awaiting("1 Elytra"), Colors.GOLD, true);
-	}
-
-	static String awaiting(String what) {
-		return "Awaiting manual payment of " + what;
+		return new ScoreScreen(state, bet, true);
 	}
 
 	@Override
 	protected void init() {
-		W = Math.max(MIN_W, Math.max(textRenderer.getWidth(heading), textRenderer.getWidth(subline)) + 12);
-		int x = (width - W) / 2;
-		int y = (height - H) / 2;
+		chipW = options.size() > 6 ? 18 : 28;
+		int rowW = options.isEmpty() ? 0 : options.size() * (chipW + CHIP_GAP) - CHIP_GAP;
+		ww = Math.max(210, 44 + rowW + Paint.S6);
+		wh = elytra ? 104 : 126;
+		wx = (width - ww) / 2;
+		wy = (height - wh) / 2;
+
+		int footY = wy + wh - Paint.S6 - Button.HEIGHT;
 		if (elytra) {
-			price = new TextFieldWidget(textRenderer, x + 70, y + 32, 72, 14, Text.literal("Elytra price"));
-			price.setMaxLength(12);
-			price.setTextPredicate(s -> s.matches("[0-9.,kKmMbB$]*"));
+			price = new TextBox(textRenderer, wx + Paint.S6, wy + 52, ww - 2 * Paint.S6, "Elytra price, e.g. 180m");
+			price.setMaxLength(14);
+			price.setTextPredicate(s -> s.matches("[0-9.,kKmMbBtT$]*"));
 			if (state.config.elytraPrice > 0) {
 				price.setText(AmountParser.format(state.config.elytraPrice));
 			}
 			addDrawableChild(price);
 			setInitialFocus(price);
-		} else {
-			them = scoreField(x + 34, y + 32, "Their score");
-			me = scoreField(x + 96, y + 32, "My score");
-			setInitialFocus(them);
+			Button ok = footer(footY, "Back", "Confirm win", AmountParser.parseOrZero(price.getText()) > 0);
+			price.setChangedListener(s -> ok.active = AmountParser.parseOrZero(s) > 0);
+			return;
 		}
-		addDrawableChild(new FlatButton(x + W - 70, y + H - 18, 30, 12, "OK", Colors.GREEN, this::save));
-		addDrawableChild(new FlatButton(x + W - 36, y + H - 18, 30, 12, elytra ? "Back" : "Skip", Colors.GREY, this::close));
+		chipRow(wy + 44, true);
+		chipRow(wy + 64, false);
+		footer(footY, "Skip", "Save", them != null && me != null);
 	}
 
-	private TextFieldWidget scoreField(int x, int y, String label) {
-		TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, 22, 14, Text.literal(label));
-		f.setMaxLength(2);
-		f.setTextPredicate(s -> s.matches("\\d{0,2}"));
-		addDrawableChild(f);
-		return f;
+	private void chipRow(int y, boolean theirs) {
+		int x = wx + 44;
+		for (ScoreOptions.Option o : options) {
+			Integer current = theirs ? them : me;
+			Button chip = new Button(x, y, chipW, o.label(), Button.Variant.SECONDARY, () -> {
+				if (theirs) {
+					them = o.value();
+				} else {
+					me = o.value();
+				}
+				clearAndInit();
+			}).selected(current != null && current == o.value());
+			addDrawableChild(chip);
+			x += chipW + CHIP_GAP;
+		}
+	}
+
+	private Button footer(int y, String cancel, String confirm, boolean canConfirm) {
+		Button ok = Button.fit(0, y, confirm, Button.Variant.PRIMARY, this::save);
+		ok.setX(wx + ww - Paint.S6 - ok.getWidth());
+		ok.active = canConfirm;
+		Button back = Button.fit(0, y, cancel, Button.Variant.GHOST, this::close);
+		back.setX(ok.getX() - 4 - back.getWidth());
+		addDrawableChild(back);
+		addDrawableChild(ok);
+		return ok;
 	}
 
 	private void save() {
@@ -91,18 +114,31 @@ final class ScoreScreen extends Screen {
 			if (p <= 0) {
 				return;
 			}
-			state.setElytraPrice(p);
-			state.resolve(bet, Outcome.PLAYER_WIN, null, null);
-		} else if (!them.getText().isEmpty() && !me.getText().isEmpty()) {
-			state.setScore(bet, Integer.parseInt(them.getText()), Integer.parseInt(me.getText()));
+			state.confirmElytraWin(bet, p);
+		} else if (them != null && me != null) {
+			state.setScore(bet, them, me);
+		} else {
+			return;
 		}
 		close();
 	}
 
 	@Override
 	public boolean keyPressed(KeyInput input) {
-		if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+		int key = input.key();
+		if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
 			save();
+			return true;
+		}
+		// Paper: type the two digits (theirs, then yours).
+		if (!elytra && key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9 && options.size() == 9) {
+			int v = key - GLFW.GLFW_KEY_0;
+			if (them == null) {
+				them = v;
+			} else {
+				me = v;
+			}
+			clearAndInit();
 			return true;
 		}
 		return super.keyPressed(input);
@@ -110,17 +146,43 @@ final class ScoreScreen extends Screen {
 
 	@Override
 	public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
-		int x = (width - W) / 2;
-		int y = (height - H) / 2;
-		Draw.box(ctx, x, y, x + W, y + H, Colors.BOX_BG);
-		ctx.drawTextWithShadow(textRenderer, heading, x + 6, y + 6, Colors.text());
-		ctx.drawTextWithShadow(textRenderer, subline, x + 6, y + 18, sublineColor);
+		float t = Anim.ease(open.to(1f, 14f));
+		ctx.fill(0, 0, width, height, Colors.alpha(Colors.SCRIM, Math.round(0x8C * t)));
+		Paint.window(ctx, wx, wy, ww, wh);
+
+		boolean won = elytra || bet.outcome == Outcome.PLAYER_WIN;
+		String badge = elytra ? "HIT" : won ? "WON" : "LOST";
+		int badgeColor = won ? Colors.RED : Colors.GREEN;
+		int bw = textRenderer.getWidth(badge) + 10;
+		Paint.pill(ctx, wx + ww - Paint.S6 - bw, wy + Paint.S6 - 1, bw, 12, Colors.alpha(badgeColor, 0x40));
+		Paint.center(ctx, textRenderer, badge, wx + ww - Paint.S6 - bw / 2, wy + Paint.S6 + 1, badgeColor);
+
+		Paint.text(ctx, textRenderer, Paint.fit(textRenderer, bet.player, ww - 2 * Paint.S6 - bw - 6), wx + Paint.S6, wy + Paint.S6, Colors.INK);
+		Paint.text(ctx, textRenderer, bet.game.displayName + " · " + Fmt.money(bet.amount) + " bet", wx + Paint.S6, wy + Paint.S6 + 12, Colors.INK_DIM);
+		Paint.hline(ctx, wx + 1, wx + ww - 1, wy + 34, Colors.LINE);
+
 		if (elytra) {
-			ctx.drawTextWithShadow(textRenderer, "Elytra price", x + 6, y + 35, Colors.muted());
-		} else {
-			ctx.drawTextWithShadow(textRenderer, "Them", x + 6, y + 35, Colors.muted());
-			ctx.drawTextWithShadow(textRenderer, "Me", x + 78, y + 35, Colors.muted());
+			Paint.label(ctx, textRenderer, "What does the elytra cost?", wx + Paint.S6, wy + 41);
+			return;
 		}
+		Paint.text(ctx, textRenderer, "Them", wx + Paint.S6, wy + 48, Colors.INK_DIM);
+		Paint.text(ctx, textRenderer, "Me", wx + Paint.S6, wy + 68, Colors.INK_DIM);
+		String hint;
+		int hintColor = Colors.INK_FAINT;
+		if (them != null && me != null) {
+			Outcome scored = ScoreJudge.judge(bet.game, them, me);
+			String score = ScoreOptions.label(bet.game, them) + " – " + ScoreOptions.label(bet.game, me);
+			if (scored == bet.outcome) {
+				hint = score + " · press Enter to save";
+				hintColor = Colors.INK_DIM;
+			} else {
+				hint = score + " would be a " + (scored == Outcome.PLAYER_WIN ? "win" : "loss") + " for them";
+				hintColor = Colors.GOLD;
+			}
+		} else {
+			hint = options.size() == 9 ? "Pick both, or type the two numbers" : "Pick both numbers (optional)";
+		}
+		Paint.text(ctx, textRenderer, hint, wx + Paint.S6, wy + 86, hintColor);
 	}
 
 	@Override
