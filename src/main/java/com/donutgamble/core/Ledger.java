@@ -1,0 +1,124 @@
+package com.donutgamble.core;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Predicate;
+
+/** All bets ever taken plus the current session start. Saved as config/donutgamble/ledger.json. */
+public class Ledger {
+	private static final int RECENT = 5;
+
+	public List<Bet> bets = new ArrayList<>();
+	public long sessionStart;
+	public long nextId = 1;
+
+	public void startSession(long now) {
+		sessionStart = now;
+	}
+
+	public Bet addPayment(String player, long amount, Game game, long now) {
+		Bet b = new Bet();
+		b.id = nextId++;
+		b.player = player;
+		b.amount = amount;
+		b.game = game;
+		b.timestamp = now;
+		bets.add(b);
+		return b;
+	}
+
+	public Bet find(long id) {
+		for (Bet b : bets) {
+			if (b.id == id) {
+				return b;
+			}
+		}
+		return null;
+	}
+
+	public void setGame(long id, Game game) {
+		Bet b = find(id);
+		if (b != null && b.isPending()) {
+			b.game = game;
+		}
+	}
+
+	public void resolve(long id, Outcome outcome, Integer them, Integer me, GambleConfig cfg) {
+		Bet b = find(id);
+		if (b == null || !b.isPending()) {
+			return;
+		}
+		b.outcome = outcome;
+		b.scoreThem = them;
+		b.scoreMe = me;
+		if (outcome == Outcome.PLAYER_WIN) {
+			b.payout = b.game == Game.ELY ? cfg.elytraPrice : Math.round(b.amount * cfg.winMultiplier);
+			b.houseNet = b.amount - b.payout;
+		} else {
+			b.payout = 0;
+			b.houseNet = b.amount;
+			b.settled = true;
+		}
+	}
+
+	public void settle(long id) {
+		Bet b = find(id);
+		if (b != null && !b.isPending()) {
+			b.settled = true;
+		}
+	}
+
+	public void remove(long id) {
+		bets.removeIf(b -> b.id == id && b.isPending());
+	}
+
+	/** Newest first. */
+	public List<Bet> pending() {
+		return filterNewestFirst(Bet::isPending);
+	}
+
+	/** Oldest first, so the first person to win is paid first. */
+	public List<Bet> owed() {
+		List<Bet> list = filterNewestFirst(b -> !b.isPending() && !b.settled);
+		list.sort(Comparator.comparingLong(b -> b.timestamp));
+		return list;
+	}
+
+	public Stats sessionStats() {
+		return stats(b -> b.timestamp >= sessionStart);
+	}
+
+	public Stats lifetimeStats() {
+		return stats(b -> true);
+	}
+
+	private Stats stats(Predicate<Bet> include) {
+		long net = 0;
+		long wagered = 0;
+		int wins = 0;
+		int losses = 0;
+		List<Bet> resolved = filterNewestFirst(b -> !b.isPending() && include.test(b));
+		for (Bet b : resolved) {
+			net += b.houseNet;
+			wagered += b.amount;
+			if (b.outcome == Outcome.PLAYER_WIN) {
+				wins++;
+			} else {
+				losses++;
+			}
+		}
+		List<Bet> recent = new ArrayList<>(resolved.subList(0, Math.min(RECENT, resolved.size())));
+		return new Stats(net, wagered, wins, losses, recent);
+	}
+
+	private List<Bet> filterNewestFirst(Predicate<Bet> p) {
+		List<Bet> out = new ArrayList<>();
+		for (int i = bets.size() - 1; i >= 0; i--) {
+			if (p.test(bets.get(i))) {
+				out.add(bets.get(i));
+			}
+		}
+		return out;
+	}
+}

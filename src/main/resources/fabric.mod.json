@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "donutgamble",
+	"version": "${version}",
+	"name": "Donut Gamble Tracker",
+	"description": "Tracks /pay gamble bets on Donut SMP, lets you call wins and losses from a panel, and shows your profit on screen for streams.",
+	"authors": ["calebtrader11"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.donutgamble.client.DonutGambleClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.17.0",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"schemaVersion": 1,
+	"id": "donutgamble-gametest",
+	"version": "1.0.0",
+	"name": "Donut Gamble client game test",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["com.donutgamble.client.DonutGambleClientGameTest"]
+	}
+}
