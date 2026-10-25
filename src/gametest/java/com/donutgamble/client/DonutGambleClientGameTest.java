@@ -74,8 +74,8 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			Bet first = state.ledger.pending().get(0);
-			state.resolve(first, Outcome.PLAYER_LOSE, null, null);
-			client.setScreen(ScoreScreen.score(state, first, "LOST"));
+			state.resolve(first, Outcome.PLAYER_WIN, null, null);
+			client.setScreen(ScoreScreen.score(state, first, "WON"));
 		});
 		context.waitTicks(5);
 		context.takeScreenshot("donutgamble-score");

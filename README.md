@@ -38,7 +38,8 @@ To click tabs and letters, open chat (`T`) or press `Insert` to free the mouse.
 | Click | What it does |
 |---|---|
 | A tab | Switch to it. |
-| **W** / **L** / **T** | They won / lost / tied. Ties go to you. A small box then asks for the score (Them / Me). Press Enter to save or Skip. |
+| **W** | They won. A small box opens for the score (Them / Me). Press Enter to save or Skip. |
+| **L** / **T** | They lost / tied. Recorded straight away, no box. Ties go to you. |
 | **W** on an Ely bet | They hit the item frame. Confirm the elytra price, and it's counted as your cost. |
 | **→BJ** (etc.) | Move a bet to another game's tab if the guess was wrong. |
 | **P** (Owe tab) | Types `/pay <name> <amount>` in chat (2x their bet). You press Enter to send. |

@@ -376,16 +376,13 @@ final class QueueOverlay {
 		}
 	}
 
+	/** L and T are instant; only W opens a box. */
 	private void lose(Bet b) {
 		state.resolve(b, Outcome.PLAYER_LOSE, null, null);
-		if (b.game.usesScore()) {
-			MinecraftClient.getInstance().setScreen(ScoreScreen.score(state, b, "LOST"));
-		}
 	}
 
 	private void tie(Bet b) {
 		state.resolveTie(b);
-		MinecraftClient.getInstance().setScreen(ScoreScreen.score(state, b, "TIED"));
 	}
 
 	/** "$50m" like Donut SMP's own lists. */
