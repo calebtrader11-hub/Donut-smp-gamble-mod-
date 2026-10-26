@@ -100,7 +100,7 @@ final class QueueHud extends HudElement {
 
 	@Override
 	boolean visibleByDefault() {
-		return fixed == null;
+		return false;
 	}
 
 	private int maxRows() {

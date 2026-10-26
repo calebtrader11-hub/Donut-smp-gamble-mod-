@@ -28,13 +28,32 @@ final class HudManager {
 	HudManager(GambleState state) {
 		this.state = state;
 		this.queue = new QueueHud(state);
-		this.elements = List.of(queue,
+		this.elements = List.of(new ChatQueueHud(state), queue,
 			new QueueHud(state, QueueHud.Tab.PAPER), new QueueHud(state, QueueHud.Tab.BLACKJACK), new QueueHud(state, QueueHud.Tab.ELY),
 			new ActivityHud(state), new AuctionHud(state), new LeaderboardHud(state), new ProfitHud(state), new ToastHud(state));
 		// Carry the old single-HUD settings over to the queue the first time.
 		if (!state.config.hud.slots.containsKey(queue.id)) {
 			HudLayout.Slot s = state.config.hud.slot(queue.id, state.config.hudX, state.config.hudY, state.config.hudVisible);
 			s.scale = state.config.hudScale;
+		}
+		// Version 2: the queue shows as chat-style lines; the tabbed box is optional.
+		if (state.config.hudVersion < 2) {
+			HudLayout.Slot box = state.config.hud.slots.get(queue.id);
+			if (box != null) {
+				box.visible = false;
+			}
+			HudLayout.Slot chat = state.config.hud.slots.get("queue.chat");
+			if (chat != null) {
+				chat.visible = true;
+			}
+			// The top-left corner is free now: the profit box goes there, clear of the chat lines.
+			HudLayout.Slot profit = state.config.hud.slots.get("profit");
+			if (profit != null) {
+				profit.x = 6;
+				profit.y = 6;
+			}
+			state.config.hudVersion = 2;
+			state.save();
 		}
 	}
 
@@ -243,16 +262,16 @@ final class HudManager {
 		boolean compact = false;
 		switch (preset) {
 			case "Minimal" -> {
-				on.addAll(java.util.List.of("queue", "auction", "toasts"));
+				on.addAll(java.util.List.of("queue.chat", "auction", "toasts"));
 				compact = true;
 			}
 			case "Streamer" -> {
-				on.addAll(java.util.List.of("queue", "auction", "leaderboard", "activity", "toasts"));
+				on.addAll(java.util.List.of("queue.chat", "auction", "leaderboard", "activity", "toasts"));
 				big = sw >= 600 ? 1.25f : 1f;
 			}
 			case "Competitive" -> on.addAll(java.util.List.of("queue.paper", "queue.blackjack", "queue.ely", "activity", "auction",
 				"leaderboard", "profit", "toasts"));
-			default -> on.addAll(java.util.List.of("queue", "auction", "leaderboard", "profit", "toasts"));
+			default -> on.addAll(java.util.List.of("queue.chat", "auction", "leaderboard", "profit", "toasts"));
 		}
 		java.util.Map<String, int[]> sizes = new java.util.HashMap<>();
 		for (HudElement e : elements) {
@@ -273,6 +292,12 @@ final class HudManager {
 				s.scale = e.id.equals("profit") ? 1f : big;
 			}
 			if (!s.visible || e.id.equals("toasts")) {
+				continue;
+			}
+			if (e.id.equals("queue.chat")) {
+				// Bottom-left, where chat sits.
+				s.x = 2;
+				s.y = Math.max(6, sh - Math.round(size[1] * s.scale) - 48);
 				continue;
 			}
 			int w = Math.round(size[0] * s.scale);

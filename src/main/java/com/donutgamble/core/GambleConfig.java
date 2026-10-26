@@ -78,6 +78,8 @@ public class GambleConfig {
 		"LIFETIME", "SESSION", "LIVE_AUCTION", "QUICK_ACTIONS", "GAMES", "PAYOUTS", "RECENT_PAYMENTS", "AUCTION_STATS"));
 	/** Defaults for new auctions. */
 	public String auctionBidNotify = "ALL";
+	/** Bumped when HUD defaults change, so older layouts get the new defaults once. */
+	public int hudVersion = 0;
 	/** Announce "ending soon" at this many seconds left (0 = off). */
 	public int auctionEndingSoonSec = 30;
 

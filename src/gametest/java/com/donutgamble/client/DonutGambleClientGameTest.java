@@ -76,8 +76,17 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			check(state.ledger.pending(Game.PAPER).size() + state.ledger.pending(Game.BLACKJACK).size() + state.ledger.pending(Game.ELY).size() == 11, "tabs split the queue");
 		});
 
+		// Chat-style queue (the default).
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.runOnClient(client -> DonutGambleClient.state.setTheme(Colors.Theme.AQUA));
+		context.waitTicks(3);
+		context.takeScreenshot("donutgamble-queue-chat");
+		// The tabbed box is optional; show it for its screenshots.
+		context.runOnClient(client -> {
+			var hudSlots = DonutGambleClient.state.config.hud;
+			hudSlots.slot("queue.chat", 2, 6, true).visible = false;
+			hudSlots.slot("queue", 6, 6, true).visible = true;
+		});
 		for (QueueHud.Tab tab : QueueHud.Tab.values()) {
 			context.runOnClient(client -> DonutGambleClient.state.config.activeTab = tab.name());
 			context.waitTicks(3);
@@ -90,24 +99,25 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			GambleState state = DonutGambleClient.state;
 			Bet first = state.ledger.pending(Game.PAPER).get(0);
 			state.callWin(first);
-			check(first.outcome == Outcome.PLAYER_WIN, "W records the win");
-			check(client.currentScreen instanceof ScoreScreen, "W opens the score picker");
-			check(state.activeToasts().stream().anyMatch(t -> t.text().startsWith("Awaiting manual payment of $100m")), "payment toast");
+			check(first.isPending(), "W only opens the result window; nothing recorded yet");
+			check(client.currentScreen instanceof ScoreScreen, "W opens the result window");
 		});
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-score-paper-empty");
 		context.runOnClient(client -> {
-			// Type "9" then "8" like the streamer would.
-			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_9, 0, 0));
+			// Host 8, viewer 9, typed like the streamer would: the viewer's higher number wins.
 			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_8, 0, 0));
+			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_9, 0, 0));
 		});
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-score-paper");
 		context.runOnClient(client -> {
 			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0));
 			Bet b = DonutGambleClient.state.ledger.bets.stream().filter(x -> x.player.equals("RazorBroGaming")).findFirst().orElseThrow();
-			check(b.scoreThem == 9 && b.scoreMe == 8, "typed score saved");
-			check(!(client.currentScreen instanceof ScoreScreen), "picker closes on save");
+			check(b.scoreThem == 9 && b.scoreMe == 8, "typed numbers saved (viewer 9, host 8)");
+			check(b.outcome == Outcome.PLAYER_WIN, "the numbers decided: viewer higher wins");
+			check(DonutGambleClient.state.activeToasts().stream().anyMatch(t -> t.text().startsWith("Awaiting manual payment of $100m")), "payment toast");
+			check(!(client.currentScreen instanceof ScoreScreen), "window closes on confirm");
 		});
 
 		// L on Blackjack: picker with 17-21 + Bust.
@@ -117,8 +127,27 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			state.callLoss(bj);
 			check(client.currentScreen instanceof ScoreScreen, "L opens the score picker");
 		});
+		context.runOnClient(client -> {
+			// Pick host 18, viewer 18: a tie, which the house wins.
+			client.currentScreen.children().stream().filter(c -> c instanceof com.donutgamble.client.ui.Button btn && btn.getMessage().getString().equals("18"))
+				.map(c -> (com.donutgamble.client.ui.Button) c).findFirst().orElseThrow()
+				.onClick(new net.minecraft.client.gui.Click(0, 0, new net.minecraft.client.input.MouseInput(0, 0)), false);
+		});
+		context.runOnClient(client -> {
+			client.currentScreen.children().stream().filter(c -> c instanceof com.donutgamble.client.ui.Button btn && btn.getMessage().getString().equals("18"))
+				.skip(1).map(c -> (com.donutgamble.client.ui.Button) c).findFirst().orElseThrow()
+				.onClick(new net.minecraft.client.gui.Click(0, 0, new net.minecraft.client.input.MouseInput(0, 0)), false);
+		});
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-score-blackjack");
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			long pendingBefore = state.ledger.pending(Game.BLACKJACK).size();
+			client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0));
+			check(state.ledger.pending(Game.BLACKJACK).size() == pendingBefore - 1, "confirm records the hand");
+			Bet tied = state.ledger.bets.stream().filter(x -> x.game == Game.BLACKJACK && x.tie && x.scoreThem != null).findFirst().orElse(null);
+			check(tied != null && tied.scoreThem == 18 && tied.scoreMe == 18, "same numbers = tie, house wins");
+		});
 		context.setScreen(() -> null);
 
 		// T: no picker.
@@ -275,8 +304,9 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			hud.snap = false;
 			hud.queue.screenX = 6;
 			hud.queue.screenY = 6;
-			check(hud.startDrag(10, 10), "grab the queue");
-			hud.drag(124, 64);
+			// Grab below the profit box, which shares the top-left corner.
+			check(hud.startDrag(10, 60), "grab the queue");
+			hud.drag(124, 114);
 			hud.endDrag();
 			check(slot.x == 120 && slot.y == 60, "queue was dragged to " + slot.x + "," + slot.y);
 			slot.x = 6;

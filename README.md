@@ -65,16 +65,25 @@ Keys can be changed under **Options → Controls → Key Binds → Donut Gamble*
 Game guess from the amount: Paper 5M – 500M, Blackjack 101M – 701M (overlaps use your last
 game), anything else is Ely Arrows.
 
-### Score picker
+### The queue and the result window
 
-![Score picker](docs/screenshots/score-paper.png)
+The queue shows like chat, bottom-left:
 
-Click the numbers the round ended on, then **Save** (or press Enter). The numbers are optional;
-**Skip** keeps the result without them.
+```
+> 1 PotatoIsCoolio paid you $ 50M - Paper [W] [L] [T]
+> Kira is owed 1 Elytra - [PAY] [DONE]
+```
 
-- **Paper**: 1 to 9. You can also just type the two digits (theirs, then yours).
-- **Blackjack**: 17, 18, 19, 20, 21 or **Bust** (players hit until 17+).
-- If the numbers say the opposite of what you clicked, the picker warns you before you save.
+Open chat or press `Insert` to click. **W** or **L** opens the result window; **T** records a tie
+straight away. Click the game name to switch game; right-click a name if it wasn't a bet. Winners
+you still owe are listed under the queue with **[PAY]** (fills in `/pay`) and **[DONE]**.
+
+![Result window](docs/screenshots/score-paper.png)
+
+In the result window you pick the **host** number and the **viewer** number (Paper 1-9, Blackjack
+17-21 or Bust; you can also type them, host first). The numbers decide: higher wins, a tie goes to
+you (TIE = LOSE for them), a blackjack bust loses. Nothing is recorded until **Confirm**; **Cancel**
+leaves the bet in the queue. Confirm without numbers records the letter you clicked.
 
 ### HUD and HUD editor
 

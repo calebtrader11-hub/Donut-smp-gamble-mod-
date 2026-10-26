@@ -19,4 +19,9 @@ public final class ScoreJudge {
 		}
 		return them > me ? Outcome.PLAYER_WIN : Outcome.PLAYER_LOSE;
 	}
+
+	/** Same number (and not both bust): the house wins, recorded as a tie. */
+	public static boolean isTie(Game game, int them, int me) {
+		return them == me && !(game == Game.BLACKJACK && them > 21);
+	}
 }

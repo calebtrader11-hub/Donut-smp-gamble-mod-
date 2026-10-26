@@ -14,6 +14,7 @@ import com.donutgamble.core.Outcome;
 import com.donutgamble.core.PaymentDeduplicator;
 import com.donutgamble.core.PaymentDetector;
 import com.donutgamble.core.Refund;
+import com.donutgamble.core.ScoreJudge;
 import com.donutgamble.core.Standing;
 import com.donutgamble.core.Transaction;
 import net.minecraft.client.MinecraftClient;
@@ -584,8 +585,12 @@ public final class GambleState {
 	}
 
 	public void resolveTie(Bet bet) {
+		resolveTie(bet, null, null);
+	}
+
+	public void resolveTie(Bet bet, Integer them, Integer me) {
 		config.lastGame = bet.game;
-		ledger.resolveTie(bet.id, null, null, config);
+		ledger.resolveTie(bet.id, them, me, config);
 		announceNext(bet.game);
 		save();
 	}
@@ -608,25 +613,46 @@ public final class GambleState {
 	// ---- calling a result (queue letters and hotkeys) ----
 
 	/**
-	 * W: they won. Paper/Blackjack record it, show "Awaiting manual payment" and open the score
-	 * picker. Ely first confirms what the elytra costs.
+	 * W: Paper/Blackjack open the result window, where the host and viewer numbers decide the
+	 * result (nothing is recorded until Confirm). Ely first confirms what the elytra costs.
 	 */
 	public void callWin(Bet bet) {
 		if (bet.game == Game.ELY) {
 			MinecraftClient.getInstance().setScreen(ScoreScreen.elytraPrice(this, bet));
 			return;
 		}
-		resolve(bet, Outcome.PLAYER_WIN, null, null);
-		awaitingPayment(bet);
-		MinecraftClient.getInstance().setScreen(ScoreScreen.score(this, bet));
+		MinecraftClient.getInstance().setScreen(ScoreScreen.result(this, bet, Outcome.PLAYER_WIN));
 	}
 
-	/** L: they lost. Paper/Blackjack open the score picker; Ely is just a miss. */
+	/** L: Paper/Blackjack open the result window; Ely is just a miss, recorded straight away. */
 	public void callLoss(Bet bet) {
+		if (bet.game.usesScore()) {
+			MinecraftClient.getInstance().setScreen(ScoreScreen.result(this, bet, Outcome.PLAYER_LOSE));
+			return;
+		}
 		resolve(bet, Outcome.PLAYER_LOSE, null, null);
 		notify(Kind.GAME_COMPLETED, bet.player + " lost · you keep " + Fmt.money(bet.amount), bet.player + " lost", Colors.GREEN, ItemStack.EMPTY);
-		if (bet.game.usesScore()) {
-			MinecraftClient.getInstance().setScreen(ScoreScreen.score(this, bet));
+	}
+
+	/**
+	 * Confirm in the result window. With both numbers the numbers decide (same number = tie, the
+	 * house wins); without them, the letter that was clicked does.
+	 */
+	void recordResult(Bet bet, Integer viewer, Integer host, Outcome called) {
+		if (!bet.isPending()) {
+			return;
+		}
+		if (viewer != null && host != null && ScoreJudge.isTie(bet.game, viewer, host)) {
+			resolveTie(bet, viewer, host);
+			notify(Kind.GAME_COMPLETED, bet.player + " tied · you keep " + Fmt.money(bet.amount), bet.player + " tied", Colors.GREEN, ItemStack.EMPTY);
+			return;
+		}
+		Outcome outcome = viewer != null && host != null ? ScoreJudge.judge(bet.game, viewer, host) : called;
+		resolve(bet, outcome, viewer, host);
+		if (outcome == Outcome.PLAYER_WIN) {
+			awaitingPayment(bet);
+		} else {
+			notify(Kind.GAME_COMPLETED, bet.player + " lost · you keep " + Fmt.money(bet.amount), bet.player + " lost", Colors.GREEN, ItemStack.EMPTY);
 		}
 	}
 
@@ -729,7 +755,7 @@ public final class GambleState {
 
 	/** H: show or hide the queue. */
 	public void toggleHud() {
-		com.donutgamble.core.HudLayout.Slot s = config.hud.slots.get("queue");
+		com.donutgamble.core.HudLayout.Slot s = config.hud.slots.get("queue.chat");
 		if (s != null) {
 			s.visible = !s.visible;
 		}

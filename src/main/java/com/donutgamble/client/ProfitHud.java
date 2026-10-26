@@ -52,7 +52,7 @@ final class ProfitHud extends HudElement {
 
 	@Override
 	int[] defaultPosition(int screenW, int screenH, int w, int h) {
-		return new int[]{screenW - w - 6, Math.max(6, screenH / 2 - h / 2)};
+		return new int[]{6, 6};
 	}
 
 	@Override
