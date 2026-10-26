@@ -26,7 +26,18 @@ public class NotificationSettings {
 
 	/** Kind name → enabled. Missing means enabled. */
 	public Map<String, Boolean> enabled = new LinkedHashMap<>();
-	public int durationSec = 4;
+	public int durationSec = 3;
+
+	public NotificationSettings() {
+		quieter();
+	}
+
+	/** The calm defaults: no "Up next" or per-bid pop-ups (new leaders still show), 3 seconds. */
+	public void quieter() {
+		enabled.put(Kind.GAME_STARTED.name(), false);
+		enabled.put(Kind.AUCTION_BID.name(), false);
+		durationSec = 3;
+	}
 	public boolean sounds = true;
 	public int maxVisible = 4;
 

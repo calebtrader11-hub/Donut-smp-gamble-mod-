@@ -11,16 +11,16 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 /**
- * The stream-facing auction card: prize icon, title, description, big countdown, time bar,
- * leader and total. Shown only while an auction is live.
+ * The stream-facing auction timer: prize and title, a big centered countdown, a time bar, and the
+ * leader with the total. Shown only while an auction is live, then a results card for a few seconds.
  */
 final class AuctionHud extends HudElement {
-	private static final int W = 176;
+	private static final int W = 180;
 
 	private final GambleState state;
 
 	AuctionHud(GambleState state) {
-		super("auction", "Auction");
+		super("auction", "Auction timer");
 		this.state = state;
 	}
 
@@ -41,15 +41,10 @@ final class AuctionHud extends HudElement {
 		Auction preview = new Auction();
 		preview.item = "Your prize";
 		preview.itemId = "minecraft:spawner";
-		preview.description = "Shown while an auction is live";
 		preview.durationMs = 300_000;
 		preview.remainingMs = 272_000;
 		preview.status = Auction.Status.PAUSED;
 		return preview;
-	}
-
-	private boolean hasDescription(Auction a) {
-		return a != null && a.description != null && !a.description.isBlank();
 	}
 
 	@Override
@@ -57,11 +52,7 @@ final class AuctionHud extends HudElement {
 		if (result() != null) {
 			return new int[]{W, 46};
 		}
-		Auction a = auction(editing);
-		if (compact) {
-			return new int[]{W, 46};
-		}
-		return new int[]{W, 66 + (hasDescription(a) ? 10 : 0)};
+		return new int[]{W, compact ? 40 : 72};
 	}
 
 	@Override
@@ -83,54 +74,62 @@ final class AuctionHud extends HudElement {
 		int h = size(tr, editing)[1];
 		Paint.hud(ctx, 0, 0, W, h);
 		boolean preview = state.auctions.current == null;
-		long left = preview ? a.remainingMs : a.remaining(System.currentTimeMillis());
+		long now = System.currentTimeMillis();
+		long left = preview ? a.remainingMs : a.remaining(now);
 		boolean paused = a.status == Auction.Status.PAUSED && !preview;
+		boolean ending = !paused && !preview && left < 30_000;
+		int timeColor = paused || preview ? Colors.GOLD : ending ? Colors.RED : 0xFFFFFFFF;
 
+		// title row: prize icon, title, status dot
 		ItemStack icon = preview ? new ItemStack(Items.SPAWNER) : ItemIcons.of(a);
 		int textX = 6;
 		if (!icon.isEmpty()) {
-			Paint.round(ctx, 5, 5, 22, 22, 3, Colors.alpha(Colors.accent(), 0x30));
-			ctx.drawItem(icon, 8, 8);
-			if (a.quantity > 1) {
-				ctx.drawStackOverlay(tr, icon.copyWithCount(Math.min(99, a.quantity)), 8, 8);
-			}
-			textX = 32;
+			ctx.getMatrices().pushMatrix();
+			ctx.getMatrices().translate(5, 4);
+			ctx.getMatrices().scale(0.75f, 0.75f);
+			ctx.drawItem(icon, 0, 0);
+			ctx.getMatrices().popMatrix();
+			textX = 20;
 		}
-		Paint.hudText(ctx, tr, Paint.fit(tr, a.item, W - textX - 40), textX, 7, Colors.text());
-		String status = preview ? "PREVIEW" : paused ? "PAUSED" : "LIVE";
-		Paint.hudText(ctx, tr, status, W - 6 - tr.getWidth(status), 7, paused || preview ? Colors.GOLD : Colors.GREEN);
-		int y = 18;
+		Paint.hudText(ctx, tr, Paint.fit(tr, a.item, W - textX - 18), textX, 6, Colors.text());
+		float pulse = paused || preview ? 1f : 0.55f + 0.45f * (float) Math.sin(now / 220.0);
+		Paint.round(ctx, W - 11, 7, 5, 5, 2, Colors.fade(paused || preview ? Colors.GOLD : Colors.GREEN, pulse));
+
+		String clock = Fmt.clock(left);
 		if (compact) {
-			int color = paused ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.INK;
-			Paint.big(ctx, tr, Fmt.clock(left), 6, 22, 2, color, true);
-			Standing leader = preview ? null : a.leader();
-			if (leader != null) {
-				String name = Paint.fit(tr, leader.player(), W - 70);
-				Paint.hudText(ctx, tr, name, W - 6 - tr.getWidth(name), 26, Colors.GOLD);
-			}
-			float frac = (float) left / Math.max(1, Math.max(a.durationMs, left));
-			Paint.bar(ctx, 6, 40, W - 12, 2, frac, Colors.alpha(0xFFFFFFFF, 0x20), paused ? Colors.GOLD : Colors.accent());
+			Paint.big(ctx, tr, clock, (W - tr.getWidth(clock) * 2) / 2, 18, 2, timeColor, true);
+			bar(ctx, a, left, paused, ending, h - 5);
 			return;
 		}
-		if (hasDescription(a)) {
-			Paint.hudText(ctx, tr, Paint.fit(tr, a.description, W - textX - 6), textX, y, Colors.muted());
-			y += 10;
-		}
+		// big centered countdown, nudged on each new second while ending
+		float tick = ending ? 1f - (left % 1000) / 1000f : 0f;
+		float scale = 3f + (ending ? 0.25f * Math.max(0f, 1f - tick * 4f) : 0f);
+		int cw = Math.round(tr.getWidth(clock) * scale);
+		ctx.getMatrices().pushMatrix();
+		ctx.getMatrices().translate((W - cw) / 2f, 19f - (scale - 3f) * 4f);
+		ctx.getMatrices().scale(scale, scale);
+		Paint.record(clock);
+		ctx.drawText(tr, clock, 0, 0, timeColor, true);
+		ctx.getMatrices().popMatrix();
+		bar(ctx, a, left, paused, ending, 46);
 
-		int clockY = Math.max(y + 2, 30);
-		int color = paused ? Colors.GOLD : left < 30_000 ? Colors.RED : Colors.INK;
-		Paint.big(ctx, tr, Fmt.clock(left), 6, clockY, 2, color, true);
 		boolean amounts = a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
-		if (amounts && !preview) {
-			String total = Fmt.money(a.total());
-			Paint.hudText(ctx, tr, total, W - 6 - tr.getWidth(total), clockY + 4, Colors.GOLD);
-		}
-
-		float frac = (float) left / Math.max(1, Math.max(a.durationMs, left));
-		Paint.bar(ctx, 6, clockY + 19, W - 12, 3, frac, Colors.alpha(0xFFFFFFFF, 0x20), paused ? Colors.GOLD : Colors.accent());
 		Standing leader = preview ? null : a.leader();
-		String lead = leader == null ? "No bids yet" : "Leader " + leader.player() + (amounts ? " " + Fmt.money(leader.total()) : "");
-		Paint.hudText(ctx, tr, Paint.fit(tr, lead, W - 12), 6, clockY + 26, leader == null ? Colors.muted() : Colors.text());
+		if (leader == null) {
+			Paint.hudText(ctx, tr, preview ? "Shown while an auction is live" : "No bids yet", 6, 55, Colors.muted());
+			return;
+		}
+		String total = amounts ? Fmt.money(leader.total()) : "";
+		int tw = tr.getWidth(total);
+		Paint.hudText(ctx, tr, Paint.fit(tr, "Leader " + leader.player(), W - 18 - tw), 6, 55, Colors.GOLD);
+		if (amounts) {
+			Paint.hudText(ctx, tr, total, W - 6 - tw, 55, Colors.text());
+		}
+	}
+
+	private void bar(DrawContext ctx, Auction a, long left, boolean paused, boolean ending, int y) {
+		float frac = (float) left / Math.max(1, Math.max(a.durationMs, left));
+		Paint.bar(ctx, 6, y, W - 12, 3, frac, Colors.alpha(0xFFFFFFFF, 0x20), paused ? Colors.GOLD : ending ? Colors.RED : Colors.accent());
 	}
 
 	/** Results card: winner and total, shown briefly after the auction ends. */
@@ -147,7 +146,7 @@ final class AuctionHud extends HudElement {
 			ctx.drawItem(icon, 6, 5);
 			textX = 26;
 		}
-		Paint.hudText(ctx, tr, cancelled ? "AUCTION CANCELLED" : "AUCTION ENDED", textX, 5, color);
+		Paint.hudText(ctx, tr, cancelled ? "AUCTION CANCELLED" : "SOLD", textX, 5, color);
 		Paint.hudText(ctx, tr, Paint.fit(tr, a.item, W - textX - 6), textX, 15, Colors.text());
 		if (cancelled || a.winner == null) {
 			Paint.hudText(ctx, tr, cancelled ? "Everyone gets a refund" : "No winner", 6, 31, Colors.muted());
@@ -155,8 +154,7 @@ final class AuctionHud extends HudElement {
 		}
 		boolean amounts = a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
 		Standing w = a.leader();
-		String line = "Winner " + a.winner;
-		Paint.hudText(ctx, tr, Paint.fit(tr, line, W - 70), 6, 31, Colors.GOLD);
+		Paint.hudText(ctx, tr, Paint.fit(tr, "Winner " + a.winner, W - 70), 6, 31, Colors.GOLD);
 		if (amounts && w != null) {
 			String total = Fmt.money(w.total());
 			Paint.hudText(ctx, tr, total, W - 6 - tr.getWidth(total), 31, Colors.text());

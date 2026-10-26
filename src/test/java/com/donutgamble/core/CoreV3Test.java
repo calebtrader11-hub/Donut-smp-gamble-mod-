@@ -239,9 +239,12 @@ class CoreV3Test {
 	@Test
 	void notificationSettings() {
 		NotificationSettings n = new NotificationSettings();
+		assertFalse(n.isEnabled(NotificationSettings.Kind.AUCTION_BID), "quiet by default: no per-bid pop-ups");
+		assertFalse(n.isEnabled(NotificationSettings.Kind.GAME_STARTED), "quiet by default: no 'Up next'");
+		assertTrue(n.isEnabled(NotificationSettings.Kind.AUCTION_LEADER), "new leaders still show");
+		assertEquals(3, n.durationSec);
+		n.setEnabled(NotificationSettings.Kind.AUCTION_BID, true);
 		assertTrue(n.isEnabled(NotificationSettings.Kind.AUCTION_BID));
-		n.setEnabled(NotificationSettings.Kind.AUCTION_BID, false);
-		assertFalse(n.isEnabled(NotificationSettings.Kind.AUCTION_BID));
 		n.setDuration(100);
 		assertEquals(15, n.durationSec);
 		n.setDuration(0);

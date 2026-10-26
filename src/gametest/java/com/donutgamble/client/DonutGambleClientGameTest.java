@@ -93,7 +93,13 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			context.takeScreenshot("donutgamble-tab-" + tab.name().toLowerCase(Locale.ROOT));
 		}
-		context.runOnClient(client -> DonutGambleClient.state.config.activeTab = QueueHud.Tab.PAPER.name());
+		context.runOnClient(client -> {
+			DonutGambleClient.state.config.activeTab = QueueHud.Tab.PAPER.name();
+			// Back to the default layout: chat-style queue, no tabbed box.
+			var hudSlots = DonutGambleClient.state.config.hud;
+			hudSlots.slot("queue", 6, 6, true).visible = false;
+			hudSlots.slot("queue.chat", 2, 6, true).visible = true;
+		});
 
 		// W on Paper: recorded, "Awaiting manual payment" toast, score picker with 1-9.
 		context.runOnClient(client -> {
@@ -228,7 +234,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> {
 			var layout = DonutGambleClient.state.config.hud;
 			check(layout.load("Mine"), "saved layout loads");
-			check(layout.slots.get("queue").visible && layout.slots.get("queue").opacity == 1f, "saved layout restored as it was");
+			check(layout.slots.get("queue.chat").visible && layout.slots.get("queue").opacity == 1f, "saved layout restored as it was");
 			DonutGambleClient.state.save();
 		});
 		context.setScreen(() -> null);
@@ -309,19 +315,21 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			}
 
 			HudManager hud = DonutGambleClient.hud;
-			var slot = state.config.hud.slots.get("queue");
+			var slot = state.config.hud.slots.get("queue.chat");
+			int oldX = slot.x, oldY = slot.y;
+			HudElement chat = hud.element("queue.chat");
+			check(chat.screenW > 0, "chat queue is on screen");
 			slot.x = 6;
-			slot.y = 6;
+			slot.y = 80;
 			hud.snap = false;
-			hud.queue.screenX = 6;
-			hud.queue.screenY = 6;
-			// Grab below the profit box, which shares the top-left corner.
-			check(hud.startDrag(10, 60), "grab the queue");
-			hud.drag(124, 114);
+			chat.screenX = 6;
+			chat.screenY = 80;
+			check(hud.startDrag(10, 84), "grab the queue");
+			hud.drag(124, 104);
 			hud.endDrag();
-			check(slot.x == 120 && slot.y == 60, "queue was dragged to " + slot.x + "," + slot.y);
-			slot.x = 6;
-			slot.y = 6;
+			check(slot.x == 120 && slot.y == 100, "queue was dragged to " + slot.x + "," + slot.y);
+			slot.x = oldX;
+			slot.y = oldY;
 			hud.snap = true;
 			state.config.activeTab = QueueHud.Tab.OWE.name();
 		});
@@ -470,6 +478,16 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.setScreen(() -> new OverlayPreviewScreen());
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-hud-auction-item");
+		// Last seconds: the big countdown in the middle of the screen.
+		long[] endsAt = new long[1];
+		context.runOnClient(client -> {
+			Auction live = DonutGambleClient.state.auctions.current;
+			endsAt[0] = live.endsAt;
+			live.endsAt = System.currentTimeMillis() + 7_400;
+		});
+		context.waitTicks(4);
+		context.takeScreenshot("donutgamble-auction-final-countdown");
+		context.runOnClient(client -> DonutGambleClient.state.auctions.current.endsAt = endsAt[0]);
 
 		// End now asks first; Escape keeps the auction running.
 		context.runOnClient(client -> ManagerScreen.open(DonutGambleClient.state, ManagerScreen.Section.AUCTION));

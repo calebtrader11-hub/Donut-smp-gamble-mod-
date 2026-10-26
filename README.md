@@ -135,6 +135,13 @@ turning Streamer Mode on (a red "STREAM PREVIEW" banner marks it).
 Streamer Mode only controls what this mod draws in the Minecraft window. It can't hide other apps
 or windows your stream captures, so keep exported files and other windows off stream.
 
+## Auction timer on screen
+
+While an auction runs, the **Auction timer** sits top-right: the prize, a big countdown, a time bar
+and the leader with their total. It turns red under 30 seconds. In the **last 10 seconds** a big
+number counts down just above your crosshair (10, 9, 8 …), and when it ends it shows **SOLD!** with
+the winner for a few seconds. Move or resize either with **End**.
+
 ## Auctions
 
 ![Auction setup](docs/screenshots/auction-setup.png)
