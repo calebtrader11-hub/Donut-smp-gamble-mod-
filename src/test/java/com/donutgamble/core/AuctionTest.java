@@ -51,7 +51,7 @@ class AuctionTest {
 	@Test
 	void earlierContributorWinsTies() {
 		AuctionManager am = new AuctionManager();
-		am.start("X", 60, 0, 0);
+		am.start("X", 60, 0, 0).winRule = "TOP";
 		am.onPayment("First", 100 * M, 1000, 1, cfg);
 		am.onPayment("Second", 100 * M, 2000, 2, cfg);
 		assertEquals("First", am.current.leader().player());
@@ -86,7 +86,7 @@ class AuctionTest {
 	@Test
 	void correctionsAdjustTotals() {
 		AuctionManager am = new AuctionManager();
-		am.start("X", 60, 0, 0);
+		am.start("X", 60, 0, 0).winRule = "TOP";
 		am.onPayment("Bob", 100 * M, 1000, 1, cfg);
 		am.current.correct("bob", -40 * M, 2000);
 		am.current.correct("Zed", 70 * M, 2000);

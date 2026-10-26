@@ -142,6 +142,10 @@ and the leader with their total. It turns red under 30 seconds. In the **last 10
 number counts down just above your crosshair (10, 9, 8 …), and when it ends it shows **SOLD!** with
 the winner for a few seconds. Move or resize either with **End**.
 
+**Who wins:** whoever made the **most recent payment** when the timer ends (manual corrections don't
+count as a payment). The "Leader" on screen is always that person. If you ever want the biggest total
+to win instead, change **Winner** in Settings → Auctions to "Highest total".
+
 ## Auctions
 
 ![Auction setup](docs/screenshots/auction-setup.png)

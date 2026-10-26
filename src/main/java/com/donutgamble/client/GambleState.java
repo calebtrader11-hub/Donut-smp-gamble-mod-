@@ -341,6 +341,7 @@ public final class GambleState {
 			return false;
 		}
 		Auction a = auctions.start(setup, System.currentTimeMillis());
+		a.winRule = config.auctionWinRule;
 		config.activeTab = QueueHud.Tab.AUCTION.name();
 		String text = "Auction started: " + a.item + " · " + Fmt.clock(a.durationMs);
 		notify(Kind.AUCTION_COMPLETED, text, text, Colors.accent(), ItemIcons.of(a));

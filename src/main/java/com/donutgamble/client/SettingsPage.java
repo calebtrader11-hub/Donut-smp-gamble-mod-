@@ -230,6 +230,8 @@ final class SettingsPage extends ManagerPage {
 			v -> v == 0 ? "Off" : v + "s", v -> c.auctionAntiSnipeSec = v);
 		slider("Ending-soon notice", "Pop-up when this much time is left", 0, 120, 5, c.auctionEndingSoonSec,
 			v -> v == 0 ? "Off" : v + "s", v -> c.auctionEndingSoonSec = v);
+		dropdown("Winner", "Who wins when the timer ends", 100, List.of("Last payment", "Highest total"),
+			() -> "TOP".equals(c.auctionWinRule) ? 1 : 0, i -> c.auctionWinRule = i == 1 ? "TOP" : "LAST");
 		dropdown("Bid alerts", "Default for new auctions", 90, AuctionPage.BID_NOTIFY_LABELS,
 			() -> Math.max(0, AuctionPage.BID_NOTIFY.indexOf(c.auctionBidNotify)), i -> c.auctionBidNotify = AuctionPage.BID_NOTIFY.get(i));
 		field("Minimum payment", "Smaller payments don't count (0 = any)", 64, c.auctionMinContribution > 0 ? AmountParser.format(c.auctionMinContribution) : "0",

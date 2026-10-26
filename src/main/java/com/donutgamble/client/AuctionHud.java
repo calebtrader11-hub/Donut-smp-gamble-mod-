@@ -153,7 +153,7 @@ final class AuctionHud extends HudElement {
 			return;
 		}
 		boolean amounts = a.showAmounts && !state.hides(PrivacySettings.Surface.AUCTION_HUD);
-		Standing w = a.leader();
+		Standing w = a.standing(a.winner);
 		Paint.hudText(ctx, tr, Paint.fit(tr, "Winner " + a.winner, W - 70), 6, 31, Colors.GOLD);
 		if (amounts && w != null) {
 			String total = Fmt.money(w.total());

@@ -38,6 +38,8 @@ public class Auction {
 	/** Show the auction card / leaderboard HUD components for this auction. */
 	public boolean hudCard = true;
 	public boolean hudLeaderboard = true;
+	/** "LAST": the most recent payment wins (default). "TOP": the biggest total wins. */
+	public String winRule = "LAST";
 	/** What the prize costs you; counted as an expense when the auction ends with a winner. */
 	public long prizeCost;
 	public long startedAt;
@@ -167,9 +169,46 @@ public class Auction {
 		return list;
 	}
 
+	/** Who's winning: by default whoever made the most recent payment; with "TOP", the biggest total. */
 	public Standing leader() {
 		List<Standing> r = rankings();
-		return r.isEmpty() ? null : r.get(0);
+		if (r.isEmpty()) {
+			return null;
+		}
+		if (!"TOP".equals(winRule)) {
+			String last = lastPayer();
+			if (last != null) {
+				Standing s = standing(last);
+				if (s != null) {
+					return s;
+				}
+			}
+		}
+		return r.get(0);
+	}
+
+	/** The player behind the most recent real payment (manual corrections don't count). */
+	public String lastPayer() {
+		for (int i = contributions.size() - 1; i >= 0; i--) {
+			Contribution c = contributions.get(i);
+			if (c.amount > 0 && c.txId != 0) {
+				return c.player;
+			}
+		}
+		return null;
+	}
+
+	/** A player's place in the ranking (their total), or null. */
+	public Standing standing(String player) {
+		if (player == null) {
+			return null;
+		}
+		for (Standing s : rankings()) {
+			if (s.player().equalsIgnoreCase(player)) {
+				return s;
+			}
+		}
+		return null;
 	}
 
 	private String canonicalName(String player) {
@@ -197,7 +236,7 @@ public class Auction {
 		List<Standing> r = rankings();
 		lines.add("Total $" + AmountParser.format(total()) + " from " + r.size() + (r.size() == 1 ? " player" : " players"));
 		if (winner != null) {
-			Standing w = r.isEmpty() ? null : r.get(0);
+			Standing w = standing(winner);
 			lines.add("Winner: " + winner + (w != null ? " ($" + AmountParser.format(w.total()) + ")" : ""));
 		} else if (status == Status.CANCELLED) {
 			lines.add("Cancelled: everyone is refunded");

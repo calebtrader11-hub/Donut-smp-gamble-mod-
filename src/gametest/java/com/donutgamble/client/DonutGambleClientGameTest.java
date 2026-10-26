@@ -264,7 +264,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			Auction a = state.auctions.current;
 			check(a.rankings().size() == 4, "4 bidders");
 			check(a.total() == 2225 * M, "duplicate echo ignored, totals add up");
-			check(a.leader().player().equals("RazorBroGaming"), "highest contributor leads");
+			check(a.leader().player().equals("jimbo01"), "the most recent payment leads");
 			check(state.ledger.pending().size() == queued, "auction payments stay out of the gamble queue");
 			state.correctAuction("hayden260", 25 * M);
 			check(a.total() == 2250 * M, "manual correction");
@@ -291,15 +291,15 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 			long expensesBefore = state.finance.report(0).expenses();
 			state.endAuction();
 			Auction ended = state.auctions.history.get(state.auctions.history.size() - 1);
-			check(ended.winner.equals("RazorBroGaming"), "winner");
+			check(ended.winner.equals("jimbo01"), "winner is whoever paid last: " + ended.winner);
 			check(state.recentResult() == ended, "results card shows the auction that just ended");
 			check(state.auctions.openRefunds().size() == 3, "losers are owed refunds");
 			check(state.finance.report(0).expenses() == expensesBefore + 250 * M, "prize cost is an expense");
 
 			long paidBefore = state.finance.report(0).paidOut();
-			pay(client, "You paid jimbo01 $ 650M");
+			pay(client, "You paid BeanznBread $ 300M");
 			check(state.auctions.openRefunds().size() == 2, "paying a refund clears it");
-			check(state.finance.report(0).paidOut() == paidBefore + 650 * M, "payout recorded");
+			check(state.finance.report(0).paidOut() == paidBefore + 300 * M, "payout recorded");
 
 			pay(client, "Notch paid you $ 40M");
 			check(state.ledger.pending().stream().anyMatch(b -> b.player.equals("Notch")), "after the auction, payments are bets again");
@@ -563,7 +563,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 				check(!t.contains("Exported"), "private toast drawn: " + t);
 				check(!t.matches(".*profit [+-]?\\$.*"), "profit figure drawn: " + t);
 			}
-			check(drawn.stream().anyMatch(t -> t.contains("Leader jimbo01")), "auction leader still public");
+			check(drawn.stream().anyMatch(t -> t.contains("Leader Tobias")), "auction leader (last payment) still public");
 			check(drawn.stream().anyMatch(t -> t.contains("2× Monster Spawner")), "auction item still public");
 			check(drawn.stream().anyMatch(t -> t.contains("$400m")), "public bid amounts still shown");
 		});

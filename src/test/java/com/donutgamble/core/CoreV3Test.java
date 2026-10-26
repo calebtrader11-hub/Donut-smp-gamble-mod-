@@ -32,6 +32,30 @@ class CoreV3Test {
 	}
 
 	@Test
+	void lastPaymentWinsAuctions() {
+		AuctionManager m = new AuctionManager();
+		GambleConfig cfg = new GambleConfig();
+		cfg.auctionRefundLosers = true;
+		Auction a = m.start("Spawner", 60, 0, 0);
+		assertEquals("LAST", a.winRule, "last payment wins by default");
+		m.onPayment("Big", 900 * M, 1, 1, cfg);
+		m.onPayment("Small", 10 * M, 2, 2, cfg);
+		assertEquals("Small", a.leader().player());
+		a.correct("Big", 5 * M, 3);
+		assertEquals("Small", a.leader().player(), "a manual correction isn't a payment");
+		Auction ended = m.end(4, cfg);
+		assertEquals("Small", ended.winner);
+		assertEquals(1, m.openRefunds().size(), "everyone else (Big) is refunded");
+		assertEquals("Big", m.openRefunds().get(0).player);
+
+		Auction top = m.start("Elytra", 60, 0, 10);
+		top.winRule = "TOP";
+		m.onPayment("Big", 900 * M, 11, 3, cfg);
+		m.onPayment("Small", 10 * M, 12, 4, cfg);
+		assertEquals("Big", top.leader().player(), "TOP: biggest total wins");
+	}
+
+	@Test
 	void elyShotsAndElytrasWon() {
 		GambleConfig cfg = new GambleConfig();
 		assertEquals(1, cfg.elyShots(810 * M), "no shot price: 1x");

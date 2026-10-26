@@ -303,7 +303,10 @@ final class AuctionPage extends ManagerPage {
 			m.text("Winner", x + 26, wy + 4, Colors.mix(Colors.GOLD, 0xFF000000, 0.2f));
 			m.text(m.fit(a.winner, w - 110), x + 26, wy + 14, Colors.GOLD);
 			if (amounts && !r.isEmpty()) {
-				m.right(Fmt.money(r.get(0).total()), x + w - 14, wy + 9, Colors.INK);
+				Standing ws = a.standing(a.winner);
+				if (ws != null) {
+					m.right(Fmt.money(ws.total()), x + w - 14, wy + 9, Colors.INK);
+				}
 			}
 		}
 		int py = y + 78;

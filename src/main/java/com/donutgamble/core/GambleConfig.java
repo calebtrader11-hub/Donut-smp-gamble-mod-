@@ -89,6 +89,8 @@ public class GambleConfig {
 	public int hudVersion = 0;
 	/** Announce "ending soon" at this many seconds left (0 = off). */
 	public int auctionEndingSoonSec = 30;
+	/** Who wins an auction: "LAST" (most recent payment) or "TOP" (biggest total). */
+	public String auctionWinRule = "LAST";
 
 	/** Streamer Mode and what it hides. */
 	public PrivacySettings privacy = new PrivacySettings();
