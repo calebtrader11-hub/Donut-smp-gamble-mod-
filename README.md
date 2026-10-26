@@ -85,6 +85,12 @@ In the result window you pick the **host** number and the **viewer** number (Pap
 you (TIE = LOSE for them), a blackjack bust loses. Nothing is recorded until **Confirm**; **Cancel**
 leaves the bet in the queue. Confirm without numbers records the letter you clicked.
 
+**Ely Arrows** lines show how many shots were bought: `Ely 1x`, `Ely 3x` (payment ÷ the shot price you
+set in Settings → Games, e.g. 270m; not set = 1x). **W** opens a window with one button per shot:
+click how many elytras they won (or type the number), check the elytra price, **Confirm**. They're
+then owed that many elytras ("Buy 2 Elytras for X · put in their /order"), and profit counts each
+one at the elytra price. **L** records a miss.
+
 ### HUD and HUD editor
 
 ![HUD editor](docs/screenshots/hud-editor-inspector.png)

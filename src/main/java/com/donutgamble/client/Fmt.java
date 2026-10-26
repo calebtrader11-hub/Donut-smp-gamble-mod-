@@ -33,6 +33,9 @@ final class Fmt {
 	}
 
 	static String owedLabel(Bet b) {
-		return b.payoutIsElytra() ? "1 Elytra" : money(b.payout);
+		if (b.payoutIsElytra()) {
+			return b.elytras() + (b.elytras() == 1 ? " Elytra" : " Elytras");
+		}
+		return money(b.payout);
 	}
 }

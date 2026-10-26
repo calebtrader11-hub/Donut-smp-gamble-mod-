@@ -23,7 +23,8 @@ import java.util.Locale;
  * The result window after W or L on Paper / Blackjack: pick the host's number and the viewer's,
  * and the numbers decide (higher wins, a tie goes to the house, blackjack bust loses). Nothing is
  * recorded until Confirm. Without numbers, Confirm records the letter that was clicked.
- * For an Ely hit it asks for the elytra price instead.
+ * For an Ely hit: click how many elytras they won (one button per shot they bought) and confirm
+ * the elytra price.
  */
 final class ScoreScreen extends Screen {
 	private static final int CHIP_GAP = 4;
@@ -37,6 +38,8 @@ final class ScoreScreen extends Screen {
 	private final List<ScoreOptions.Option> options;
 	private final Anim open = new Anim(0);
 	private Integer host, viewer;
+	/** Ely: elytras won; preselected when they bought a single shot. */
+	private int won;
 	private TextBox price;
 	private int wx, wy, ww, wh, chipW, hostY, viewerY;
 
@@ -66,21 +69,41 @@ final class ScoreScreen extends Screen {
 	@Override
 	protected void init() {
 		if (elytra) {
-			ww = 210;
-			wh = 104;
+			int shots = state.config.elyShots(bet.amount);
+			if (shots == 1) {
+				won = 1;
+			}
+			int chip = 30;
+			int rowW = shots * (chip + CHIP_GAP) - CHIP_GAP;
+			ww = Math.max(230, rowW + 2 * Paint.S6);
+			wh = 162;
 			wx = (width - ww) / 2;
 			wy = (height - wh) / 2;
-			price = new TextBox(textRenderer, wx + Paint.S6, wy + 52, ww - 2 * Paint.S6, "Elytra price, e.g. 180m");
+			int x = wx + (ww - rowW) / 2;
+			for (int i = 1; i <= shots; i++) {
+				int n = i;
+				Button b = new Button(x, wy + 58, chip, Integer.toString(i), Button.Variant.SECONDARY, () -> {
+					won = n;
+					clearAndInit();
+				}).selected(won == n);
+				b.setHeight(CHIP_H);
+				addDrawableChild(b);
+				x += chip + CHIP_GAP;
+			}
+			String typed = price == null ? null : price.getText();
+			price = new TextBox(textRenderer, wx + ww - Paint.S6 - 90, wy + 90, 90, "e.g. 180m");
+			if (typed != null) {
+				price.setText(typed);
+			}
 			price.setMaxLength(14);
 			price.setTextPredicate(s -> s.matches("[0-9.,kKmMbBtT$]*"));
-			if (state.config.elytraPrice > 0) {
+			if (typed == null && state.config.elytraPrice > 0) {
 				price.setText(AmountParser.format(state.config.elytraPrice));
 			}
 			addDrawableChild(price);
-			setInitialFocus(price);
-			Button ok = footer(wy + wh - Paint.S6 - Button.HEIGHT, "Back", "Confirm win");
-			ok.active = AmountParser.parseOrZero(price.getText()) > 0;
-			price.setChangedListener(s -> ok.active = AmountParser.parseOrZero(s) > 0);
+			Button ok = footer(wy + wh - Paint.S6 - Button.HEIGHT, "Cancel", "Confirm");
+			ok.active = won > 0 && AmountParser.parseOrZero(price.getText()) > 0;
+			price.setChangedListener(s -> ok.active = won > 0 && AmountParser.parseOrZero(s) > 0);
 			return;
 		}
 		chipW = options.size() > 6 ? 22 : 34;
@@ -136,10 +159,10 @@ final class ScoreScreen extends Screen {
 	private void save() {
 		if (elytra) {
 			long p = AmountParser.parseOrZero(price.getText());
-			if (p <= 0) {
+			if (p <= 0 || won <= 0) {
 				return;
 			}
-			state.confirmElytraWin(bet, p);
+			state.confirmElytraWin(bet, p, won);
 		} else {
 			state.recordResult(bet, viewer, host, called);
 		}
@@ -154,6 +177,12 @@ final class ScoreScreen extends Screen {
 			return true;
 		}
 		// Paper: type the two numbers, host first, then the viewer.
+		if (elytra && key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9 && !(getFocused() instanceof TextBox)
+			&& key - GLFW.GLFW_KEY_0 <= state.config.elyShots(bet.amount)) {
+			won = key - GLFW.GLFW_KEY_0;
+			clearAndInit();
+			return true;
+		}
 		if (!elytra && key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9 && options.size() == 9) {
 			int v = key - GLFW.GLFW_KEY_0;
 			if (host == null || viewer != null) {
@@ -175,10 +204,22 @@ final class ScoreScreen extends Screen {
 		Paint.window(ctx, wx, wy, ww, wh);
 
 		if (elytra) {
-			Paint.text(ctx, textRenderer, Paint.fit(textRenderer, bet.player, ww - 2 * Paint.S6), wx + Paint.S6, wy + Paint.S6, Colors.INK);
-			Paint.text(ctx, textRenderer, "Ely Arrows hit · " + Fmt.money(bet.amount) + " bet", wx + Paint.S6, wy + Paint.S6 + 12, Colors.INK_DIM);
-			Paint.hline(ctx, wx + 1, wx + ww - 1, wy + 34, Colors.LINE);
-			Paint.label(ctx, textRenderer, "What does the elytra cost?", wx + Paint.S6, wy + 41);
+			int cx = wx + ww / 2;
+			int shots = state.config.elyShots(bet.amount);
+			Paint.center(ctx, textRenderer, "ELY ARROWS RESULT", cx, wy + 9, Colors.accent());
+			Paint.center(ctx, textRenderer, Paint.fit(textRenderer, bet.player + " · " + Fmt.money(bet.amount) + " · " + shots + "x", ww - 20),
+				cx, wy + 22, Colors.INK_DIM);
+			Paint.hline(ctx, wx + Paint.S6, wx + ww - Paint.S6, wy + 38, Colors.LINE);
+			Paint.text(ctx, textRenderer, "ELYTRAS WON", wx + Paint.S6, wy + 45, Colors.INK);
+			Paint.hline(ctx, wx + Paint.S6, wx + ww - Paint.S6, wy + 82, Colors.LINE);
+			Paint.text(ctx, textRenderer, "Elytra price", wx + Paint.S6, wy + 94, Colors.INK_DIM);
+			long p = AmountParser.parseOrZero(price.getText());
+			if (won > 0) {
+				String owe = "Owe " + won + (won == 1 ? " elytra" : " elytras") + (p > 0 ? " · " + Fmt.money(p * won) : "");
+				Paint.center(ctx, textRenderer, owe, cx, wy + 116, Colors.GOLD);
+			} else {
+				Paint.center(ctx, textRenderer, "Click how many they won", cx, wy + 116, Colors.INK_DIM);
+			}
 			return;
 		}
 		int cx = wx + ww / 2;

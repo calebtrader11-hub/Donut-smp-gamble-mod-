@@ -45,6 +45,17 @@ public class Ledger {
 		}
 	}
 
+	/** Ely Arrows: {@code won} elytras out of the shots bought (0 = a miss). */
+	public void resolveEly(long id, int won, GambleConfig cfg) {
+		Bet b = find(id);
+		if (b == null || !b.isPending()) {
+			return;
+		}
+		b.shots = cfg.elyShots(b.amount);
+		b.elytrasWon = Math.max(0, won);
+		resolve(id, won > 0 ? Outcome.PLAYER_WIN : Outcome.PLAYER_LOSE, null, null, cfg);
+	}
+
 	public void resolve(long id, Outcome outcome, Integer them, Integer me, GambleConfig cfg) {
 		Bet b = find(id);
 		if (b == null || !b.isPending()) {
@@ -55,7 +66,7 @@ public class Ledger {
 		b.scoreThem = them;
 		b.scoreMe = me;
 		if (outcome == Outcome.PLAYER_WIN) {
-			b.payout = b.game == Game.ELY ? cfg.elytraPrice : Math.round(b.amount * cfg.winMultiplier);
+			b.payout = b.game == Game.ELY ? cfg.elytraPrice * b.elytras() : Math.round(b.amount * cfg.winMultiplier);
 			b.houseNet = b.amount - b.payout;
 		} else {
 			b.payout = 0;

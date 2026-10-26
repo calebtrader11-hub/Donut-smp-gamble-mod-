@@ -256,6 +256,12 @@ final class SettingsPage extends ManagerPage {
 				c.elytraPrice = v;
 			}
 		});
+		field("Ely Arrows shot price", "One shot, e.g. 270m: a 810m payment shows as 3x", 64, money(c.elyShotPrice), s -> {
+			long v = AmountParser.parseOrZero(s);
+			if (v > 0 || s.isEmpty()) {
+				c.elyShotPrice = v;
+			}
+		});
 		buttons("Session", "Starts the session totals from zero; nothing is deleted", "New session", (Runnable) () ->
 			m.confirm("Start a new session?", "Session totals start from zero. Lifetime totals and all history are kept.", "New session", false, state::newSession));
 	}

@@ -27,13 +27,25 @@ public class Bet {
 		return outcome == null;
 	}
 
+	/** Ely Arrows: shots bought and elytras won (set when the result is called). */
+	public int shots = 1;
+	public int elytrasWon;
+
+	/** Elytras owed on a win: at least 1 for wins saved before this was recorded. */
+	public int elytras() {
+		return Math.max(1, elytrasWon);
+	}
+
 	public boolean payoutIsElytra() {
 		return game == Game.ELY;
 	}
 
 	public String scoreLabel() {
 		if (game == Game.ELY) {
-			return outcome == Outcome.PLAYER_WIN ? "HIT" : "MISS";
+			if (outcome != Outcome.PLAYER_WIN) {
+				return "MISS";
+			}
+			return shots > 1 || elytrasWon > 1 ? elytras() + "/" + Math.max(shots, elytras()) : "HIT";
 		}
 		if (scoreThem == null || scoreMe == null) {
 			return tie ? "T" : outcome == Outcome.PLAYER_WIN ? "W" : "L";

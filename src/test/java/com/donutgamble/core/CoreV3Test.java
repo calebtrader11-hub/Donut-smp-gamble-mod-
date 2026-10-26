@@ -32,6 +32,27 @@ class CoreV3Test {
 	}
 
 	@Test
+	void elyShotsAndElytrasWon() {
+		GambleConfig cfg = new GambleConfig();
+		assertEquals(1, cfg.elyShots(810 * M), "no shot price: 1x");
+		cfg.elyShotPrice = 270 * M;
+		assertEquals(1, cfg.elyShots(270 * M));
+		assertEquals(3, cfg.elyShots(810 * M));
+		assertEquals(1, cfg.elyShots(100 * M), "never 0x");
+		cfg.elytraPrice = 180 * M;
+		Ledger l = new Ledger();
+		Bet b = l.addPayment("A", 810 * M, Game.ELY, 1);
+		l.resolveEly(b.id, 2, cfg);
+		assertEquals(Outcome.PLAYER_WIN, b.outcome);
+		assertEquals(360 * M, b.payout, "2 elytras");
+		assertEquals("2/3", b.scoreLabel());
+		Bet miss = l.addPayment("B", 270 * M, Game.ELY, 2);
+		l.resolveEly(miss.id, 0, cfg);
+		assertEquals(Outcome.PLAYER_LOSE, miss.outcome);
+		assertEquals(270 * M, miss.houseNet);
+	}
+
+	@Test
 	void profitIsOneNumberForEverything() {
 		GambleConfig cfg = new GambleConfig();
 		cfg.elytraPrice = 30 * M;

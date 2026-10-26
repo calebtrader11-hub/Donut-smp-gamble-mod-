@@ -662,15 +662,23 @@ public final class GambleState {
 		notify(Kind.GAME_COMPLETED, bet.player + " tied · you keep " + Fmt.money(bet.amount), bet.player + " tied", Colors.GREEN, ItemStack.EMPTY);
 	}
 
-	/** Ely hit, once the price is confirmed. */
-	void confirmElytraWin(Bet bet, long price) {
+	/** Ely Arrows result: {@code won} elytras at {@code price} each (0 = they missed every shot). */
+	void confirmElytraWin(Bet bet, long price, int won) {
 		setElytraPrice(price);
-		resolve(bet, Outcome.PLAYER_WIN, null, null);
-		awaitingPayment(bet);
+		config.lastGame = bet.game;
+		ledger.resolveEly(bet.id, won, config);
+		announceNext(bet.game);
+		save();
+		if (won > 0) {
+			awaitingPayment(bet);
+		} else {
+			notify(Kind.GAME_COMPLETED, bet.player + " missed · you keep " + Fmt.money(bet.amount), bet.player + " missed", Colors.GREEN, ItemStack.EMPTY);
+		}
 	}
 
 	void awaitingPayment(Bet bet) {
-		String text = "Awaiting manual payment of " + Fmt.owedLabel(bet) + " to " + bet.player;
+		String text = bet.payoutIsElytra() ? "Buy " + Fmt.owedLabel(bet) + " for " + bet.player + " · put in their /order"
+			: "Awaiting manual payment of " + Fmt.owedLabel(bet) + " to " + bet.player;
 		notify(Kind.PAYOUT_DUE, text, text, Colors.GOLD, ItemStack.EMPTY);
 	}
 
@@ -682,8 +690,8 @@ public final class GambleState {
 			return;
 		}
 		Bet bet = queue.get(0);
-		if (outcome == Outcome.PLAYER_WIN && bet.game == Game.ELY && config.elytraPrice <= 0) {
-			// No price yet: an Ely win would count as costing nothing.
+		if (outcome == Outcome.PLAYER_WIN && bet.game == Game.ELY && (config.elytraPrice <= 0 || config.elyShots(bet.amount) > 1)) {
+			// No price yet (it would count as costing nothing), or several shots: ask how many were won.
 			MinecraftClient.getInstance().setScreen(ScoreScreen.elytraPrice(this, bet));
 			return;
 		}

@@ -65,7 +65,8 @@ final class ChatQueueHud extends HudElement {
 			l.add(new Piece("$ ", Colors.GREEN, null, null));
 			l.add(new Piece(money(b.amount), 0xFFFFFFFF, null, null));
 			l.add(new Piece(" - ", Colors.GREY, null, null));
-			l.add(new Piece(tag(b.game), Colors.muted(), () -> state.cycleGame(b), null));
+			String tag = b.game == Game.ELY ? "Ely " + state.config.elyShots(b.amount) + "x" : tag(b.game);
+			l.add(new Piece(tag, Colors.muted(), () -> state.cycleGame(b), null));
 			l.add(new Piece(" ", 0, null, null));
 			l.add(new Piece("[W]", Colors.GREEN, () -> state.callWin(b), null));
 			l.add(new Piece(" ", 0, null, null));
@@ -79,7 +80,8 @@ final class ChatQueueHud extends HudElement {
 		int owed = 0;
 		for (Bet b : state.ledger.owed()) {
 			if (out.size() < maxLines()) {
-				out.add(owedLine(b.player, Fmt.owedLabel(b), () -> state.prefillPay(b), () -> state.settle(b)));
+				// Elytras are bought and placed in their /order, not /paid: only DONE.
+				out.add(owedLine(b.player, Fmt.owedLabel(b), b.payoutIsElytra() ? null : () -> state.prefillPay(b), () -> state.settle(b)));
 			} else {
 				owed++;
 			}
@@ -111,8 +113,10 @@ final class ChatQueueHud extends HudElement {
 		l.add(new Piece(" is owed ", Colors.GREY, null, null));
 		l.add(new Piece(what, Colors.GOLD, null, null));
 		l.add(new Piece(" - ", Colors.GREY, null, null));
-		l.add(new Piece("[PAY]", Colors.GREEN, pay, null));
-		l.add(new Piece(" ", 0, null, null));
+		if (pay != null) {
+			l.add(new Piece("[PAY]", Colors.GREEN, pay, null));
+			l.add(new Piece(" ", 0, null, null));
+		}
 		l.add(new Piece("[DONE]", Colors.GREY, done, null));
 		return l;
 	}

@@ -40,6 +40,7 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			state.config.elytraPrice = 180 * M;
+			state.config.elyShotPrice = 40 * M;
 			state.newSession();
 
 			pay(client, "Max paid you $ 400M");
@@ -163,11 +164,21 @@ public class DonutGambleClientGameTest implements FabricClientGameTest {
 		context.runOnClient(client -> {
 			GambleState state = DonutGambleClient.state;
 			Bet ely = state.ledger.pending(Game.ELY).get(0);
+			check(state.config.elyShots(ely.amount) == 3, "120m at 40m a shot is 3x");
 			state.callWin(ely);
-			check(ely.isPending(), "Ely win waits for the price");
+			check(ely.isPending(), "Ely win waits for how many were won");
+			client.currentScreen.keyPressed(new KeyInput(GLFW.GLFW_KEY_2, 0, 0));
 		});
 		context.waitTicks(3);
 		context.takeScreenshot("donutgamble-elytra");
+		context.runOnClient(client -> {
+			GambleState state = DonutGambleClient.state;
+			Bet ely = state.ledger.bets.stream().filter(b -> b.game == Game.ELY && b.elytrasWon == 0 && b.isPending()).findFirst().orElse(null);
+			client.currentScreen.keyPressed(new KeyInput(GLFW.GLFW_KEY_ENTER, 0, 0));
+			Bet won = state.ledger.bets.stream().filter(b -> b.elytrasWon == 2).findFirst().orElseThrow();
+			check(won.outcome == Outcome.PLAYER_WIN && won.payout == 360 * M, "2 elytras owed at 180m each");
+			check(Fmt.owedLabel(won).equals("2 Elytras"), "owed label counts elytras: " + Fmt.owedLabel(won));
+		});
 		context.setScreen(() -> null);
 
 		context.setScreen(() -> new OverlayPreviewScreen());

@@ -79,7 +79,7 @@ public record PlayerStats(String player, int bets, int wins, int losses, int tie
 					a.wins++;
 					if (!b.settled) {
 						if (b.payoutIsElytra()) {
-							a.elytrasOwed++;
+							a.elytrasOwed += b.elytras();
 						} else {
 							a.outstanding += b.payout;
 						}

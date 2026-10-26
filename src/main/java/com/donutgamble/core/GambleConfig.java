@@ -42,6 +42,13 @@ public class GambleConfig {
 	public long blackjackMax = 701 * M;
 	public double winMultiplier = 2.0;
 	public long elytraPrice = 0;
+	/** Ely Arrows: what one shot costs (e.g. 270m), so a 810m payment shows as 3x. 0 = not set (1x). */
+	public long elyShotPrice = 0;
+
+	/** How many shots a payment buys: amount ÷ shot price, at least 1. */
+	public int elyShots(long amount) {
+		return elyShotPrice > 0 ? (int) Math.max(1, Math.min(99, amount / elyShotPrice)) : 1;
+	}
 
 	public boolean hudVisible = true;
 	/** Old single-HUD position; only read to seed the queue's slot in {@link #hud}. */
